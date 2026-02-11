@@ -1,0 +1,104 @@
+# Keiba Data Analytics — 設定ファイルテンプレート
+# config.yaml にコピーして、実際の値を設定してください。
+# config.yaml は .gitignore に含まれています。
+
+# データベース設定
+database:
+  # JVLinkToSQLiteが生成するSQLite DBのパス
+  jvlink_db_path: "../mykeibadb_v3.61/mykeiba.db"
+  # 拡張テーブル用DB（同一DBまたは別DB）
+  extension_db_path: "./data/extension.db"
+  # WALモード有効化
+  wal_mode: true
+
+# LLM Gateway設定
+llm_gateway:
+  # デフォルトプロバイダー: azure / vertex
+  default_provider: "vertex"
+
+  # Azure AI Foundry
+  azure:
+    endpoint: "https://your-resource.openai.azure.com/"
+    api_version: "2024-12-01-preview"
+    # API keyは環境変数 AZURE_OPENAI_API_KEY で設定
+    models:
+      claude_opus: "claude-opus-4-6"
+      gpt52: "gpt-5.2"
+
+  # GCP Vertex AI
+  vertex:
+    project_id: "your-gcp-project-id"
+    location: "us-central1"
+    # 認証はサービスアカウントキーまたはADCを使用
+    models:
+      gemini_pro: "gemini-3.0-pro-preview"
+      gemini_flash: "gemini-3.0-flash-preview"
+      claude_opus: "claude-opus-4-6"
+
+  # 用途別モデル割り当て
+  model_routing:
+    deep_research:
+      primary: "vertex/claude_opus"
+      fallback: "vertex/gemini_pro"
+    factor_generation:
+      primary: "azure/claude_opus"
+      fallback: "azure/gpt52"
+    weekly_report:
+      primary: "vertex/gemini_pro"
+      fallback: "azure/gpt52"
+    nl_query:
+      primary: "azure/claude_opus"
+      fallback: "vertex/gemini_pro"
+    alert_interpretation:
+      primary: "vertex/gemini_flash"
+      fallback: "azure/gpt52"
+    race_analysis:
+      primary: "vertex/gemini_flash"
+      fallback: "azure/gpt52"
+
+# スコアリングエンジン
+scoring:
+  base_score: 100
+  ev_threshold: 1.05
+  min_odds: 1.5
+  max_odds: 100.0
+  calibration_method: "platt"  # platt / isotonic
+
+# 資金管理
+bankroll:
+  initial_balance: 1000000
+  betting_method: "quarter_kelly"  # equal / ev_proportional / quarter_kelly
+  max_daily_rate: 0.20
+  max_per_race_rate: 0.05
+  drawdown_cutoff: 0.30
+  recovery_step: 0.10
+
+# 自動投票
+betting:
+  method: "dryrun"  # dryrun / selenium / ipatgo
+  approval_required: true
+  max_consecutive_losses: 20
+  odds_deviation_threshold: 0.30
+  initial_mode_duration_days: 30
+  initial_mode_scale: 0.10
+
+# JVLinkToSQLite
+jvlink:
+  exe_path: "./JVLinkToSQLiteArtifact_0.1.2.0.exe"
+  retry_count: 3
+  notification:
+    slack_webhook_url: ""
+    email_to: ""
+
+# ダッシュボード
+dashboard:
+  theme: "dark"
+  port: 8501
+  page_title: "Keiba Data Analytics"
+
+# ログ
+logging:
+  level: "INFO"
+  log_dir: "./logs"
+  rotation: "10 MB"
+  retention: "30 days"

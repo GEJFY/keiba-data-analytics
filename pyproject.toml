@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[project]
+name = "keiba-data-analytics"
+version = "0.1.0"
+description = "競馬定量投資プラットフォーム — 卍指数方式バリュー投資戦略"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "GEJFY" }]
+dependencies = [
+    # データ処理
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    # 機械学習
+    "scikit-learn>=1.4",
+    "lightgbm>=4.3",
+    "xgboost>=2.0",
+    # ダッシュボード
+    "streamlit>=1.40",
+    "plotly>=5.22",
+    "streamlit-aggrid>=1.0",
+    # LLM Gateway
+    "openai>=1.50",
+    "anthropic>=0.40",
+    "google-cloud-aiplatform>=1.70",
+    # バリデーション・ログ
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "loguru>=0.7",
+    # 自動投票
+    "selenium>=4.20",
+    # ユーティリティ
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "pytest-mock>=3.14",
+    "mypy>=1.10",
+    "ruff>=0.5",
+    "httpx>=0.27",
+    "playwright>=1.44",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "unit: 単体テスト",
+    "integration: 結合テスト",
+    "e2e: E2Eテスト",
+    "slow: 実行に時間がかかるテスト",
+]
+addopts = "-v --tb=short --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "src/dashboard/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

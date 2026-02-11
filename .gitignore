@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 仮想環境
+.venv/
+venv/
+env/
+
+# 環境変数・秘密情報
+.env
+.env.local
+*.pem
+credentials.json
+service-account-key.json
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# データベース（大量データ）
+*.db
+*.sqlite
+*.sqlite3
+mykeibadb_v3.61/
+
+# JVLinkToSQLite
+setting.xml
+
+# 設定ファイル（秘密情報を含む）
+config/config.yaml
+
+# バックアップ
+_old_backup/
+
+# テスト・カバレッジ
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ログ
+logs/
+*.log
+
+# 投票ファイル（機密）
+bet_files/
+
+# 大容量バイナリ
+*.exe
+
+# Claude Code
+.claude/
