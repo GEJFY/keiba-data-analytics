@@ -2,6 +2,12 @@
 
 過去データを用いた戦略検証を実行する。
 ライブ実行と同一コードパスを使用し、Look-Ahead Biasを防止する。
+
+バックテストフロー:
+    1. 対象期間のレースリストを受け取る
+    2. 各レースに対して戦略のrun()を実行（ライブと同一パス）
+    3. ベット分だけ仮想bankrollを減算
+    4. 全ベットからKPIメトリクスを算出
 """
 
 from dataclasses import dataclass
@@ -15,7 +21,14 @@ from src.strategy.base import Bet, Strategy
 
 @dataclass
 class BacktestConfig:
-    """バックテスト実行設定。"""
+    """バックテスト実行設定。
+
+    Attributes:
+        date_from: 検証期間開始日（ISO 8601形式）
+        date_to: 検証期間終了日（ISO 8601形式）
+        initial_bankroll: 初期資金（円）
+        strategy_version: 戦略バージョン（記録用）
+    """
 
     date_from: str
     date_to: str
@@ -25,7 +38,15 @@ class BacktestConfig:
 
 @dataclass
 class BacktestResult:
-    """バックテスト実行結果。"""
+    """バックテスト実行結果。
+
+    Attributes:
+        config: 実行設定
+        total_races: 対象レース数
+        total_bets: 総ベット数
+        bets: 全ベットのリスト
+        metrics: KPIメトリクス
+    """
 
     config: BacktestConfig
     total_races: int
@@ -35,9 +56,16 @@ class BacktestResult:
 
 
 class BacktestEngine:
-    """バックテストエンジン。"""
+    """バックテストエンジン。
+
+    戦略プラグインを注入し、過去データでの検証を実行する。
+    """
 
     def __init__(self, strategy: Strategy) -> None:
+        """
+        Args:
+            strategy: 検証対象の戦略プラグイン
+        """
         self._strategy = strategy
 
     def run(
@@ -45,18 +73,25 @@ class BacktestEngine:
         races: list[dict[str, Any]],
         config: BacktestConfig,
     ) -> BacktestResult:
-        """
-        バックテストを実行する。
+        """バックテストを実行する。
+
+        各レースの形式:
+            {"race_info": {...}, "entries": [...], "odds": {...}}
 
         Args:
             races: バックテスト対象レースのリスト
             config: バックテスト設定
 
         Returns:
-            バックテスト結果
+            バックテスト結果（メトリクス含む）
         """
         all_bets: list[Bet] = []
         bankroll = config.initial_bankroll
+
+        logger.info(
+            f"バックテスト開始: {config.date_from}〜{config.date_to}, "
+            f"初期資金={config.initial_bankroll:,}円, レース数={len(races)}"
+        )
 
         for race in races:
             race_data = race.get("race_info", {})
@@ -75,7 +110,6 @@ class BacktestEngine:
             # 資金更新（バックテスト用の擬似処理）
             for bet in bets:
                 bankroll -= bet.stake_yen
-                # 結果の反映はメトリクス計算時に行う
 
         metrics = calculate_metrics(all_bets, config.initial_bankroll)
 

@@ -2,6 +2,9 @@
 
 factor_rulesテーブルとfactor_review_logテーブルを通じて
 ファクタールールのライフサイクルを管理する。
+
+ルールの状態遷移:
+    DRAFT → TESTING → APPROVED → DEPRECATED
 """
 
 from datetime import datetime, timezone
@@ -11,15 +14,38 @@ from loguru import logger
 
 from src.data.db import DatabaseManager
 
+# 許可されるステータス遷移マップ
+_VALID_TRANSITIONS: dict[str, list[str]] = {
+    "DRAFT": ["TESTING"],
+    "TESTING": ["APPROVED", "DRAFT"],
+    "APPROVED": ["DEPRECATED"],
+    "DEPRECATED": [],
+}
+
+# ステータス遷移時のアクションマッピング
+_STATUS_ACTION_MAP: dict[str, str] = {
+    "TESTING": "ACTIVATED",
+    "APPROVED": "ACTIVATED",
+    "DRAFT": "DEACTIVATED",
+    "DEPRECATED": "DEPRECATED",
+}
+
 
 class FactorRegistry:
-    """ファクタールールの登録・管理クラス。"""
+    """ファクタールールの登録・管理クラス。
+
+    全てのルール操作はfactor_review_logに変更履歴として記録される。
+    """
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
 
     def get_active_rules(self) -> list[dict[str, Any]]:
-        """有効な（APPROVED かつ is_active = 1 かつ有効期間内の）ルールを取得する。"""
+        """有効な（APPROVED かつ is_active = 1 かつ有効期間内の）ルールを取得する。
+
+        Returns:
+            有効なルールのdictリスト（category, rule_id順）
+        """
         now = datetime.now(timezone.utc).isoformat()
         return self._db.execute_query(
             """
@@ -34,14 +60,34 @@ class FactorRegistry:
         )
 
     def get_rules_by_status(self, status: str) -> list[dict[str, Any]]:
-        """ステータスでルールをフィルタリングする。"""
+        """ステータスでルールをフィルタリングする。
+
+        Args:
+            status: DRAFT / TESTING / APPROVED / DEPRECATED
+
+        Returns:
+            該当ステータスのルールリスト
+        """
         return self._db.execute_query(
             "SELECT * FROM factor_rules WHERE review_status = ? ORDER BY rule_id",
             (status,),
         )
 
     def create_rule(self, rule_data: dict[str, Any]) -> int:
-        """新規ルールをDRAFTとして作成する。"""
+        """新規ルールをDRAFTとして作成する。
+
+        Args:
+            rule_data: ルール情報（rule_name必須、category/description/weight等は任意）
+
+        Returns:
+            作成されたルールのrule_id
+
+        Raises:
+            KeyError: rule_nameが含まれていない場合
+        """
+        if "rule_name" not in rule_data:
+            raise KeyError("rule_dataに'rule_name'が必須です")
+
         now = datetime.now(timezone.utc).isoformat()
         insert_sql = """
             INSERT INTO factor_rules
@@ -73,7 +119,14 @@ class FactorRegistry:
         return rule_id
 
     def update_weight(self, rule_id: int, new_weight: float, reason: str, changed_by: str = "user") -> None:
-        """ルールの重みを更新する。"""
+        """ルールの重みを更新する。
+
+        Args:
+            rule_id: 対象ルールID
+            new_weight: 新しい重み値
+            reason: 変更理由
+            changed_by: 変更者名
+        """
         old = self._db.execute_query("SELECT weight FROM factor_rules WHERE rule_id = ?", (rule_id,))
         old_weight = old[0]["weight"] if old else 0.0
 
@@ -85,15 +138,20 @@ class FactorRegistry:
         self._log_change(
             rule_id, "UPDATED", old_weight=old_weight, new_weight=new_weight, reason=reason, changed_by=changed_by
         )
+        logger.info(f"ルール {rule_id}: weight {old_weight} → {new_weight} ({reason})")
 
     def transition_status(self, rule_id: int, new_status: str, reason: str, changed_by: str = "user") -> None:
-        """ルールのステータスを遷移する。"""
-        valid_transitions = {
-            "DRAFT": ["TESTING"],
-            "TESTING": ["APPROVED", "DRAFT"],
-            "APPROVED": ["DEPRECATED"],
-            "DEPRECATED": [],
-        }
+        """ルールのステータスを遷移する。
+
+        Args:
+            rule_id: 対象ルールID
+            new_status: 遷移先ステータス
+            reason: 遷移理由
+            changed_by: 変更者名
+
+        Raises:
+            ValueError: ルールが存在しない、または不正な遷移の場合
+        """
         current = self._db.execute_query(
             "SELECT review_status FROM factor_rules WHERE rule_id = ?", (rule_id,)
         )
@@ -101,7 +159,7 @@ class FactorRegistry:
             raise ValueError(f"ルールID {rule_id} が見つかりません")
 
         current_status = current[0]["review_status"]
-        if new_status not in valid_transitions.get(current_status, []):
+        if new_status not in _VALID_TRANSITIONS.get(current_status, []):
             raise ValueError(f"ステータス遷移 {current_status} → {new_status} は許可されていません")
 
         now = datetime.now(timezone.utc).isoformat()
@@ -115,9 +173,9 @@ class FactorRegistry:
             (new_status, is_active, now, now, rule_id),
         )
 
-        action_map = {"TESTING": "ACTIVATED", "APPROVED": "ACTIVATED", "DRAFT": "DEACTIVATED", "DEPRECATED": "DEPRECATED"}
-        self._log_change(rule_id, action_map.get(new_status, "UPDATED"), reason=reason, changed_by=changed_by)
-        logger.info(f"ルール {rule_id}: {current_status} → {new_status}")
+        action = _STATUS_ACTION_MAP.get(new_status, "UPDATED")
+        self._log_change(rule_id, action, reason=reason, changed_by=changed_by)
+        logger.info(f"ルール {rule_id}: {current_status} → {new_status} ({reason})")
 
     def _log_change(
         self,
