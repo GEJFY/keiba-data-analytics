@@ -22,8 +22,8 @@ llm_gateway:
     api_version: "2024-12-01-preview"
     # API keyは環境変数 AZURE_OPENAI_API_KEY で設定
     models:
-      claude_opus: "claude-opus-4-6"
-      gpt52: "gpt-5.2"
+      gpt4o: "gpt-4o"
+      gpt4o_mini: "gpt-4o-mini"
 
   # GCP Vertex AI
   vertex:
@@ -38,26 +38,26 @@ llm_gateway:
   # 用途別モデル割り当て（Azure AI Foundry優先）
   model_routing:
     deep_research:
-      primary: "azure/claude_opus"
-      fallback: "azure/gpt52"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     factor_generation:
-      primary: "azure/claude_opus"
-      fallback: "azure/gpt52"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     weekly_report:
-      primary: "azure/gpt52"
-      fallback: "azure/claude_opus"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     nl_query:
-      primary: "azure/claude_opus"
-      fallback: "azure/gpt52"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     alert_interpretation:
-      primary: "azure/gpt52"
-      fallback: "azure/claude_opus"
+      primary: "azure/gpt4o_mini"
+      fallback: "azure/gpt4o"
     race_analysis:
-      primary: "azure/gpt52"
-      fallback: "azure/claude_opus"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     report_generation:
-      primary: "azure/gpt52"
-      fallback: "azure/claude_opus"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
 
 # スコアリングエンジン
 scoring:
