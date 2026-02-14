@@ -27,6 +27,7 @@ class DatabaseManager:
     def __init__(self, db_path: str, wal_mode: bool = True) -> None:
         self._db_path = Path(db_path)
         self._wal_mode = wal_mode
+        self._persistent_conn: sqlite3.Connection | None = None
         if not self._db_path.exists():
             logger.warning(f"DBファイルが存在しません（初回接続時に自動生成）: {self._db_path}")
 
@@ -36,11 +37,42 @@ class DatabaseManager:
         return self._db_path
 
     @contextmanager
+    def session(self) -> Generator[sqlite3.Connection, None, None]:
+        """バッチ処理用コンテキストマネージャ。
+
+        session中のexecute_query/connect呼び出しは同一接続を再利用する。
+        バッチクエリの接続オーバーヘッドを解消するために使用する。
+        """
+        conn = sqlite3.connect(str(self._db_path))
+        conn.row_factory = sqlite3.Row
+        if self._wal_mode:
+            conn.execute("PRAGMA journal_mode=WAL")
+        self._persistent_conn = conn
+        try:
+            yield conn
+            conn.commit()
+        except sqlite3.Error as e:
+            conn.rollback()
+            logger.error(f"DBセッションエラー（ロールバック実行）: {e}")
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._persistent_conn = None
+            conn.close()
+
+    @contextmanager
     def connect(self) -> Generator[sqlite3.Connection, None, None]:
         """DB接続のコンテキストマネージャ。
 
         正常終了時にcommit、例外発生時にrollbackを自動実行する。
+        session()中の場合は既存接続を再利用する。
         """
+        if self._persistent_conn is not None:
+            yield self._persistent_conn
+            return
+
         conn = sqlite3.connect(str(self._db_path))
         conn.row_factory = sqlite3.Row
         if self._wal_mode:

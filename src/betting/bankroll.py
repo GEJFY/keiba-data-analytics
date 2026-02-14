@@ -1,6 +1,6 @@
 """資金管理モジュール。
 
-卍氏の資金管理手法を参考にした投票金額決定ロジック。
+GY指数方式に基づく投票金額決定ロジック。
 
 投票金額決定方式:
     - EQUAL: 固定比率方式（残高 × fixed_rate）
@@ -91,6 +91,9 @@ class BankrollManager:
         Returns:
             投票金額（円、100円単位）。投票対象外の場合は0。
         """
+        if not (0 < estimated_prob < 1) or odds <= 1.0:
+            return 0
+
         # ドローダウン制限チェック
         scale = 1.0
         if self.current_drawdown > self._drawdown_cutoff:

@@ -1,6 +1,6 @@
 """スコアリングエンジン本体。
 
-卍指数方式に基づき、各馬にファクタースコアを付与し、
+GY指数方式に基づき、各馬にファクタースコアを付与し、
 期待値（EV）を算出する。
 
 スコアリングフロー:
@@ -11,17 +11,22 @@
     5. EV > ev_threshold のベットを「バリューベット」と判定
 """
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
 from src.data.db import DatabaseManager
+from src.data.provider import JVLinkDataProvider
 from src.factors.registry import FactorRegistry
 from src.scoring.calibration import ProbabilityCalibrator
+from src.scoring.evaluator import evaluate_rule
 
 
 class ScoringEngine:
-    """卍指数方式スコアリングエンジン。
+    """GY指数方式スコアリングエンジン。
 
     Attributes:
         BASE_SCORE: 全馬共通の基礎スコア（100点）
@@ -33,19 +38,34 @@ class ScoringEngine:
         self,
         db: DatabaseManager,
         calibrator: ProbabilityCalibrator | None = None,
+        calibrator_path: str | Path | None = None,
         ev_threshold: float = 1.05,
+        jvlink_provider: JVLinkDataProvider | None = None,
     ) -> None:
         """
         Args:
             db: データベースマネージャ
             calibrator: 確率校正モデル（None時はフォールバック変換）
+            calibrator_path: 校正モデルファイルパス（calibrator未指定時に使用）
             ev_threshold: バリューベット判定の期待値閾値
+            jvlink_provider: JVLinkデータプロバイダ（前走データ取得用、Noneで前走なし）
         """
         self._db = db
         self._registry = FactorRegistry(db)
         self._calibrator = calibrator
         self._ev_threshold = ev_threshold
         self._fallback_warned = False
+        self._provider = jvlink_provider
+
+        # calibrator未設定でパス指定があればファイルからロード
+        if self._calibrator is None and calibrator_path:
+            path = Path(calibrator_path)
+            if path.exists():
+                try:
+                    self._calibrator = ProbabilityCalibrator.load(path)
+                    logger.info(f"校正モデルを読み込みました: {path}")
+                except Exception as e:
+                    logger.warning(f"校正モデル読込エラー: {e}")
 
     def score_horse(
         self,
@@ -53,6 +73,8 @@ class ScoringEngine:
         race: dict[str, Any],
         all_entries: list[dict[str, Any]],
         rules: list[dict[str, Any]],
+        prev_context: dict[str, Any] | None = None,
+        all_prev_l3f: list[float] | None = None,
     ) -> dict[str, Any]:
         """1頭の馬に対してスコアを計算する。
 
@@ -61,6 +83,8 @@ class ScoringEngine:
             race: レース情報（NL_RAレコード）
             all_entries: 同レース全出走馬データ
             rules: 適用するファクタールールのリスト
+            prev_context: 前走の出走馬データ（Noneで前走なし）
+            all_prev_l3f: 同レース全馬の前走HaronTimeL3リスト
 
         Returns:
             {"umaban", "total_score", "factor_details"} のdict
@@ -69,8 +93,12 @@ class ScoringEngine:
         factor_details: dict[str, float] = {}
 
         for rule in rules:
-            # TODO: ルールのSQL式/Python式を評価するロジックを実装
-            rule_result = 0.0  # プレースホルダ
+            expression = rule.get("sql_expression", "")
+            rule_result = evaluate_rule(
+                expression, horse, race, all_entries,
+                prev_context=prev_context,
+                all_prev_l3f=all_prev_l3f,
+            )
             weighted = rule_result * rule.get("weight", 1.0)
             total_score += weighted
             factor_details[rule["rule_name"]] = weighted
@@ -119,11 +147,21 @@ class ScoringEngine:
             "is_value_bet": expected_value > self._ev_threshold,
         }
 
+    @staticmethod
+    def _safe_float(value: Any, default: float = 0.0) -> float:
+        """安全に浮動小数点変換する。"""
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+
     def score_race(
         self,
         race: dict[str, Any],
         entries: list[dict[str, Any]],
         odds_map: dict[str, float],
+        race_key: str = "",
+        as_of_date: str | None = None,
     ) -> list[dict[str, Any]]:
         """1レース全馬のスコアと期待値を計算する。
 
@@ -131,15 +169,41 @@ class ScoringEngine:
             race: レース情報
             entries: 出走馬リスト
             odds_map: 馬番→オッズのマッピング
+            race_key: レースキー（前走データ取得用、空文字で前走なし）
+            as_of_date: 時点日 (YYYY-MM-DD)。指定時は訓練期間が
+                この日付より前のファクターのみ使用する。
 
         Returns:
             EV降順にソートされたスコア結果リスト（オッズ0の馬は除外）
         """
-        rules = self._registry.get_active_rules()
+        rules = self._registry.get_active_rules(as_of_date=as_of_date)
         results = []
 
-        for horse in entries:
-            score_result = self.score_horse(horse, race, entries, rules)
+        # 前走データ取得（provider + race_keyが揃っている場合のみ）
+        prev_contexts: list[dict[str, Any] | None] = []
+        all_prev_l3f: list[float] | None = None
+        if self._provider and race_key:
+            l3f_list: list[float] = []
+            for horse in entries:
+                ketto = str(horse.get("KettoNum", ""))
+                prev = (
+                    self._provider.get_previous_race_entry(ketto, race_key)
+                    if ketto else None
+                )
+                prev_contexts.append(prev)
+                l3f_list.append(
+                    self._safe_float(prev.get("HaronTimeL3", 0)) if prev else 0.0
+                )
+            all_prev_l3f = l3f_list
+        else:
+            prev_contexts = [None] * len(entries)
+
+        for i, horse in enumerate(entries):
+            score_result = self.score_horse(
+                horse, race, entries, rules,
+                prev_context=prev_contexts[i],
+                all_prev_l3f=all_prev_l3f,
+            )
             umaban = str(horse.get("Umaban", ""))
             actual_odds = odds_map.get(umaban, 0.0)
 
@@ -148,3 +212,61 @@ class ScoringEngine:
                 results.append(ev_result)
 
         return sorted(results, key=lambda x: x["expected_value"], reverse=True)
+
+    def save_scores(
+        self,
+        race_key: str,
+        scored_results: list[dict[str, Any]],
+        ext_db: DatabaseManager,
+        strategy_version: str = "",
+    ) -> int:
+        """スコア結果をhorse_scoresテーブルに保存する。
+
+        Args:
+            race_key: レースキー
+            scored_results: score_race()の戻り値
+            ext_db: 拡張DB（horse_scoresテーブルが存在するDB）
+            strategy_version: 戦略バージョン文字列
+
+        Returns:
+            保存したレコード数
+        """
+        if not ext_db.table_exists("horse_scores"):
+            logger.warning("horse_scoresテーブルが存在しません")
+            return 0
+
+        now = datetime.now(timezone.utc).isoformat()
+        saved = 0
+
+        for result in scored_results:
+            try:
+                factor_json = json.dumps(
+                    result.get("factor_details", {}),
+                    ensure_ascii=False,
+                    default=str,
+                )
+                ext_db.execute_write(
+                    """INSERT INTO horse_scores
+                       (race_key, umaban, total_score, factor_details,
+                        estimated_prob, fair_odds, actual_odds, expected_value,
+                        strategy_version, calculated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        race_key,
+                        result.get("umaban", ""),
+                        result.get("total_score", 0.0),
+                        factor_json,
+                        result.get("estimated_prob"),
+                        result.get("fair_odds"),
+                        result.get("actual_odds"),
+                        result.get("expected_value"),
+                        strategy_version,
+                        now,
+                    ),
+                )
+                saved += 1
+            except Exception as e:
+                logger.error(f"スコア保存エラー: umaban={result.get('umaban')} {e}")
+
+        logger.info(f"スコア保存完了: race_key={race_key} {saved}件")
+        return saved

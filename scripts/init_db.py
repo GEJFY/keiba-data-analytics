@@ -27,7 +27,9 @@ EXTENSION_TABLES = [
         decay_rate REAL,
         min_sample_size INTEGER DEFAULT 100,
         review_status TEXT DEFAULT 'DRAFT',
-        reviewed_at TEXT
+        reviewed_at TEXT,
+        training_from TEXT,
+        training_to TEXT
     )
     """,
     """
@@ -78,6 +80,7 @@ EXTENSION_TABLES = [
         executed_at TEXT,
         result TEXT,
         payout_yen INTEGER DEFAULT 0,
+        settled_at TEXT,
         factor_details TEXT DEFAULT '{}',
         note TEXT DEFAULT ''
     )
@@ -125,6 +128,60 @@ EXTENSION_TABLES = [
         error_message TEXT DEFAULT ''
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS pipeline_runs (
+        run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_date TEXT NOT NULL,
+        status TEXT DEFAULT 'RUNNING',
+        sync_status TEXT,
+        sync_records_added INTEGER DEFAULT 0,
+        races_found INTEGER DEFAULT 0,
+        races_scored INTEGER DEFAULT 0,
+        total_bets INTEGER DEFAULT 0,
+        total_stake INTEGER DEFAULT 0,
+        reconciled INTEGER DEFAULT 0,
+        errors TEXT DEFAULT '[]',
+        started_at TEXT NOT NULL,
+        completed_at TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS rule_set_snapshots (
+        snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version_label TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        trigger TEXT DEFAULT 'manual',
+        calibrator_path TEXT,
+        calibrator_method TEXT,
+        config_json TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT DEFAULT 'user'
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS factor_rules_archive (
+        archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_id INTEGER,
+        rule_id INTEGER NOT NULL,
+        rule_name TEXT NOT NULL,
+        category TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        sql_expression TEXT DEFAULT '',
+        weight REAL DEFAULT 1.0,
+        review_status TEXT DEFAULT 'DRAFT',
+        is_active INTEGER DEFAULT 0,
+        validation_score REAL,
+        decay_rate REAL,
+        min_sample_size INTEGER DEFAULT 100,
+        source TEXT DEFAULT 'manual',
+        training_from TEXT,
+        training_to TEXT,
+        archived_at TEXT NOT NULL,
+        archived_by TEXT DEFAULT 'system',
+        FOREIGN KEY (rule_id) REFERENCES factor_rules(rule_id),
+        FOREIGN KEY (snapshot_id) REFERENCES rule_set_snapshots(snapshot_id)
+    )
+    """,
 ]
 
 # インデックス
@@ -136,6 +193,12 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_bets_status ON bets(status)",
     "CREATE INDEX IF NOT EXISTS idx_bankroll_date ON bankroll_log(date)",
     "CREATE INDEX IF NOT EXISTS idx_data_sync_status ON data_sync_log(status)",
+    "CREATE INDEX IF NOT EXISTS idx_pipeline_runs_date ON pipeline_runs(run_date)",
+    "CREATE INDEX IF NOT EXISTS idx_pipeline_runs_status ON pipeline_runs(status)",
+    "CREATE INDEX IF NOT EXISTS idx_factor_rules_training ON factor_rules(training_from, training_to)",
+    "CREATE INDEX IF NOT EXISTS idx_archive_snapshot ON factor_rules_archive(snapshot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_archive_rule ON factor_rules_archive(rule_id)",
+    "CREATE INDEX IF NOT EXISTS idx_snapshots_created ON rule_set_snapshots(created_at)",
 ]
 
 
@@ -152,6 +215,9 @@ def init_extension_tables(db_path: str) -> None:
             conn.execute(ddl)
         for idx in INDEXES:
             conn.execute(idx)
+        _migrate_training_columns(conn)
+        _migrate_search_tables(conn)
+        _migrate_version_tables(conn)
         conn.commit()
         print(f"拡張テーブル初期化完了: {path}")
     except Exception as e:
@@ -160,6 +226,69 @@ def init_extension_tables(db_path: str) -> None:
         sys.exit(1)
     finally:
         conn.close()
+
+
+def _migrate_search_tables(conn: sqlite3.Connection) -> None:
+    """search_sessions / search_trials テーブルを追加する。"""
+    from src.search.result_store import SEARCH_TABLES_DDL
+
+    for ddl in SEARCH_TABLES_DDL:
+        conn.execute(ddl)
+
+
+def _migrate_training_columns(conn: sqlite3.Connection) -> None:
+    """既存DBにtraining_from/training_toカラムを追加する。"""
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(factor_rules)").fetchall()]
+    if "training_from" not in cols:
+        conn.execute("ALTER TABLE factor_rules ADD COLUMN training_from TEXT")
+    if "training_to" not in cols:
+        conn.execute("ALTER TABLE factor_rules ADD COLUMN training_to TEXT")
+
+
+def _migrate_version_tables(conn: sqlite3.Connection) -> None:
+    """バージョン管理テーブルを追加する（冪等）。"""
+    tables = [row[0] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()]
+    if "rule_set_snapshots" not in tables:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rule_set_snapshots (
+                snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version_label TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                trigger TEXT DEFAULT 'manual',
+                calibrator_path TEXT,
+                calibrator_method TEXT,
+                config_json TEXT,
+                created_at TEXT NOT NULL,
+                created_by TEXT DEFAULT 'user'
+            )
+        """)
+    if "factor_rules_archive" not in tables:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS factor_rules_archive (
+                archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_id INTEGER,
+                rule_id INTEGER NOT NULL,
+                rule_name TEXT NOT NULL,
+                category TEXT DEFAULT '',
+                description TEXT DEFAULT '',
+                sql_expression TEXT DEFAULT '',
+                weight REAL DEFAULT 1.0,
+                review_status TEXT DEFAULT 'DRAFT',
+                is_active INTEGER DEFAULT 0,
+                validation_score REAL,
+                decay_rate REAL,
+                min_sample_size INTEGER DEFAULT 100,
+                source TEXT DEFAULT 'manual',
+                training_from TEXT,
+                training_to TEXT,
+                archived_at TEXT NOT NULL,
+                archived_by TEXT DEFAULT 'system',
+                FOREIGN KEY (rule_id) REFERENCES factor_rules(rule_id),
+                FOREIGN KEY (snapshot_id) REFERENCES rule_set_snapshots(snapshot_id)
+            )
+        """)
 
 
 if __name__ == "__main__":

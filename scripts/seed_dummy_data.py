@@ -1,7 +1,7 @@
 """ダミーデータ生成スクリプト。
 
-JVLinkToSQLiteと同等のNL_*テーブルにリアルな競馬データを投入する。
-2025年1月 中山開催を模擬した3日分・36レースのデータを生成。
+JVLinkToSQLiteの実テーブルスキーマ（NL_RA_RACE, NL_SE_RACE_UMA等）に準拠した
+リアルな競馬データを投入する。2025年1月 中山開催を模擬した3日分・36レースのデータ。
 
 Usage:
     python scripts/seed_dummy_data.py [--db-path ./data/demo.db]
@@ -21,14 +21,12 @@ if _PROJECT_ROOT not in sys.path:
 # マスタデータ定義（実在する競馬場・馬名等を模擬）
 # ============================================================
 
-# 競馬場コード (JRA)
 JYO_CODES = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟",
     "05": "東京", "06": "中山", "07": "中京", "08": "京都",
     "09": "阪神", "10": "小倉",
 }
 
-# 馬名プール（実在しない架空名）
 HORSE_NAMES = [
     "マンジフェニックス", "ゴールドクレスト", "サイレンスブレイク", "スカイフォーチュン",
     "ダイナミックエッジ", "レッドインパクト", "ブルーサンダー", "ホワイトアロー",
@@ -44,54 +42,43 @@ HORSE_NAMES = [
     "プリンスオブウェールズ", "ロイヤルアスコット", "セントレジャー", "エプソムダービー",
 ]
 
-# 騎手名プール
 JOCKEY_NAMES = [
     "武田太郎", "鈴木一馬", "佐藤翔太", "田中勇人", "高橋直哉",
     "渡辺健二", "伊藤慎也", "山本和也", "中村俊介", "小林大輔",
     "加藤光", "吉田博", "山口亮", "松本裕", "井上翼",
 ]
 
-# 距離と芝/ダートの組み合わせ
 COURSE_CONDITIONS = [
-    ("1200", "芝", "01"),  # 01=芝
-    ("1400", "芝", "01"),
-    ("1600", "芝", "01"),
-    ("1800", "芝", "01"),
-    ("2000", "芝", "01"),
-    ("2200", "芝", "01"),
-    ("2500", "芝", "01"),
-    ("3600", "芝", "01"),  # 障害
-    ("1200", "ダート", "02"),  # 02=ダート
-    ("1400", "ダート", "02"),
-    ("1800", "ダート", "02"),
-    ("2100", "ダート", "02"),
+    ("1200", "芝", "10"),  # 10=芝・左
+    ("1400", "芝", "11"),  # 11=芝・右
+    ("1600", "芝", "10"),
+    ("1800", "芝", "11"),
+    ("2000", "芝", "10"),
+    ("2200", "芝", "11"),
+    ("2500", "芝", "10"),
+    ("3600", "芝", "10"),  # 障害
+    ("1200", "ダート", "22"),  # 22=ダート・右
+    ("1400", "ダート", "23"),
+    ("1800", "ダート", "22"),
+    ("2100", "ダート", "23"),
 ]
 
-# レース名（重賞含む）
 RACE_NAMES = {
     1: "中山金杯", 2: "2歳新馬", 3: "3歳未勝利", 4: "1勝クラス",
     5: "2勝クラス", 6: "3勝クラス", 7: "サンライズS", 8: "迎春S",
     9: "初富士S", 10: "ニューイヤーS", 11: "ジュニアC", 12: "中山最終",
 }
 
-
-def _random_weight() -> str:
-    """馬体重を生成する（420〜540kg）。"""
-    base = random.randint(420, 540)
-    diff = random.choice([-8, -6, -4, -2, 0, 0, 2, 2, 4, 6, 8])
-    return f"{base}({diff:+d})"
-
-
-def _random_time(kyori: str) -> str:
-    """走破タイムを生成する（距離に応じたリアルな範囲）。"""
-    dist = int(kyori)
-    # 1Fあたり約12.0秒（芝）を基準に±ランダム
-    base_seconds = (dist / 200.0) * 12.0
-    variation = random.uniform(-2.0, 4.0)
-    total = base_seconds + variation
-    minutes = int(total // 60)
-    seconds = total % 60
-    return f"{minutes}:{seconds:04.1f}"
+# 固定馬プール（複数レースに再出走して前走データを生成するため）
+HORSE_POOL: list[dict] = []
+_pool_rng = random.Random(99)
+for _i in range(40):
+    HORSE_POOL.append({
+        "KettoNum": f"{2000000000 + _i:010d}",
+        "Bamei": HORSE_NAMES[_i % len(HORSE_NAMES)],
+        "SexCD": _pool_rng.choice(["1", "2", "3"]),
+        "Barei": str(_pool_rng.randint(2, 8)),
+    })
 
 
 def _random_odds(num_horses: int, favorite_idx: int) -> list[float]:
@@ -99,207 +86,358 @@ def _random_odds(num_horses: int, favorite_idx: int) -> list[float]:
     odds_list = []
     for i in range(num_horses):
         if i == favorite_idx:
-            # 1番人気: 1.5〜4.0
             odds_list.append(round(random.uniform(1.5, 4.0), 1))
         elif i < 3:
-            # 2-3番人気: 3.0〜10.0
             odds_list.append(round(random.uniform(3.0, 10.0), 1))
         elif i < 6:
-            # 4-6番人気: 8.0〜30.0
             odds_list.append(round(random.uniform(8.0, 30.0), 1))
         else:
-            # 人気薄: 20.0〜200.0
             odds_list.append(round(random.uniform(20.0, 200.0), 1))
     return odds_list
 
 
+def _random_time(kyori: str) -> str:
+    """走破タイムを生成する。"""
+    dist = int(kyori)
+    base_seconds = (dist / 200.0) * 12.0
+    variation = random.uniform(-2.0, 4.0)
+    total = base_seconds + variation
+    minutes = int(total // 60)
+    seconds = total % 60
+    return f"{minutes}{seconds:04.1f}"
+
+
+def _random_haron_l3() -> str:
+    """上がり3Fタイムを生成する。"""
+    return f"{random.uniform(33.0, 38.0):.1f}"
+
+
 def create_jvlink_tables(conn: sqlite3.Connection) -> None:
-    """JVLinkToSQLite相当のNL_*テーブルを作成する。"""
+    """JVLinkToSQLite実スキーマのテーブルを作成する。"""
+    # NL_RA_RACE（レース情報）
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS NL_RA (
-            Year TEXT, MonthDay TEXT, JyoCD TEXT, Kaiji TEXT, Nichiji TEXT,
-            RaceNum TEXT, RaceName TEXT, Kyori TEXT, TrackCD TEXT,
-            TenkoBaba TEXT, Syubetucd TEXT, JyokenCD TEXT,
-            HassoTime TEXT, LapTime TEXT, Ninkiord TEXT
+        CREATE TABLE IF NOT EXISTS NL_RA_RACE (
+            headRecordSpec TEXT, headDataKubun TEXT, headMakeDate TEXT,
+            idYear TEXT NOT NULL, idMonthDay TEXT NOT NULL,
+            idJyoCD TEXT NOT NULL, idKaiji TEXT NOT NULL,
+            idNichiji TEXT NOT NULL, idRaceNum TEXT NOT NULL,
+            RaceInfoYoubiCD TEXT, RaceInfoTokuNum TEXT,
+            RaceInfoHondai TEXT, RaceInfoFukudai TEXT, RaceInfoKakko TEXT,
+            RaceInfoRyakusyo10 TEXT, RaceInfoRyakusyo6 TEXT, RaceInfoRyakusyo3 TEXT,
+            GradeCD TEXT, GradeCDBefore TEXT,
+            JyokenInfoSyubetuCD TEXT, JyokenInfoKigoCD TEXT, JyokenInfoJyuryoCD TEXT,
+            JyokenInfoJyokenCD0 TEXT, JyokenInfoJyokenCD1 TEXT,
+            JyokenName TEXT, Kyori TEXT, TrackCD TEXT,
+            CourseKubunCD TEXT,
+            HassoTime TEXT,
+            TorokuTosu TEXT, SyussoTosu TEXT, NyusenTosu TEXT,
+            TenkoBabaTenkoCD TEXT, TenkoBabaSibaBabaCD TEXT, TenkoBabaDirtBabaCD TEXT,
+            HaronTimeS3 TEXT, HaronTimeS4 TEXT,
+            HaronTimeL3 TEXT, HaronTimeL4 TEXT,
+            RecordUpKubun TEXT,
+            PRIMARY KEY (idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum)
         )
     """)
+
+    # NL_SE_RACE_UMA（馬毎レース情報）
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS NL_SE (
-            Year TEXT, MonthDay TEXT, JyoCD TEXT, Kaiji TEXT, Nichiji TEXT,
-            RaceNum TEXT, Umaban TEXT, Wakuban TEXT, KettoNum TEXT,
-            Bamei TEXT, SexCD TEXT, Barei TEXT, Futan TEXT,
-            KisyuName TEXT, BanusiName TEXT, ChokyosiName TEXT,
-            ZogenSa TEXT, Time TEXT, KakuteiJyuni TEXT,
-            Ninki TEXT, IDM TEXT, SpeedIndex TEXT
+        CREATE TABLE IF NOT EXISTS NL_SE_RACE_UMA (
+            headRecordSpec TEXT, headDataKubun TEXT, headMakeDate TEXT,
+            idYear TEXT NOT NULL, idMonthDay TEXT NOT NULL,
+            idJyoCD TEXT NOT NULL, idKaiji TEXT NOT NULL,
+            idNichiji TEXT NOT NULL, idRaceNum TEXT NOT NULL,
+            Wakuban TEXT, Umaban TEXT, KettoNum TEXT NOT NULL,
+            Bamei TEXT, UmaKigoCD TEXT, SexCD TEXT, HinsyuCD TEXT, KeiroCD TEXT,
+            Barei TEXT, TozaiCD TEXT,
+            ChokyosiCode TEXT, ChokyosiRyakusyo TEXT,
+            BanusiCode TEXT, BanusiName TEXT,
+            Futan TEXT, FutanBefore TEXT,
+            Blinker TEXT,
+            KisyuCode TEXT, KisyuRyakusyo TEXT,
+            MinaraiCD TEXT,
+            BaTaijyu TEXT, ZogenFugo TEXT, ZogenSa TEXT,
+            IJyoCD TEXT, NyusenJyuni TEXT, KakuteiJyuni TEXT,
+            DochakuKubun TEXT, DochakuTosu TEXT,
+            Time TEXT, ChakusaCD TEXT,
+            Jyuni1c TEXT, Jyuni2c TEXT, Jyuni3c TEXT, Jyuni4c TEXT,
+            Odds TEXT, Ninki TEXT,
+            Honsyokin TEXT, Fukasyokin TEXT,
+            HaronTimeL4 TEXT, HaronTimeL3 TEXT,
+            TimeDiff TEXT, RecordUpKubun TEXT,
+            DMKubun TEXT, DMTime TEXT, DMGosaP TEXT, DMGosaM TEXT, DMJyuni TEXT,
+            KyakusituKubun TEXT,
+            PRIMARY KEY (idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum, KettoNum)
         )
     """)
+
+    # NL_HR_PAY（払戻情報）
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS NL_HR (
-            KettoNum TEXT, Bamei TEXT, SexCD TEXT, BirthDate TEXT,
-            HansyokuF TEXT, HansyokuM TEXT, BanusiName TEXT,
-            ChokyosiName TEXT, Syozoku TEXT
+        CREATE TABLE IF NOT EXISTS NL_HR_PAY (
+            headRecordSpec TEXT, headDataKubun TEXT, headMakeDate TEXT,
+            idYear TEXT NOT NULL, idMonthDay TEXT NOT NULL,
+            idJyoCD TEXT NOT NULL, idKaiji TEXT NOT NULL,
+            idNichiji TEXT NOT NULL, idRaceNum TEXT NOT NULL,
+            TorokuTosu TEXT, SyussoTosu TEXT,
+            PayTansyo0Umaban TEXT, PayTansyo0Pay TEXT, PayTansyo0Ninki TEXT,
+            PayTansyo1Umaban TEXT, PayTansyo1Pay TEXT, PayTansyo1Ninki TEXT,
+            PayTansyo2Umaban TEXT, PayTansyo2Pay TEXT, PayTansyo2Ninki TEXT,
+            PayFukusyo0Umaban TEXT, PayFukusyo0Pay TEXT, PayFukusyo0Ninki TEXT,
+            PayFukusyo1Umaban TEXT, PayFukusyo1Pay TEXT, PayFukusyo1Ninki TEXT,
+            PayFukusyo2Umaban TEXT, PayFukusyo2Pay TEXT, PayFukusyo2Ninki TEXT,
+            PRIMARY KEY (idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum)
         )
     """)
+
+    # NL_O1_ODDS_TANFUKUWAKU（単複枠オッズ — 1行=1レース、横持ち）
+    cols = ["headRecordSpec TEXT", "headDataKubun TEXT", "headMakeDate TEXT"]
+    cols += [f"idYear TEXT NOT NULL", "idMonthDay TEXT NOT NULL"]
+    cols += ["idJyoCD TEXT NOT NULL", "idKaiji TEXT NOT NULL"]
+    cols += ["idNichiji TEXT NOT NULL", "idRaceNum TEXT NOT NULL"]
+    cols += ["HappyoTime TEXT", "TorokuTosu TEXT", "SyussoTosu TEXT"]
+    for i in range(28):
+        cols += [
+            f"OddsTansyoInfo{i}Umaban TEXT",
+            f"OddsTansyoInfo{i}Odds TEXT",
+            f"OddsTansyoInfo{i}Ninki TEXT",
+        ]
+    cols += ["PRIMARY KEY (idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum)"]
+    conn.execute(f"CREATE TABLE IF NOT EXISTS NL_O1_ODDS_TANFUKUWAKU ({', '.join(cols)})")
+
+    # NL_UM_UMA（馬マスタ）
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS NL_UM (
-            KettoNum TEXT, Bamei TEXT, SexCD TEXT, KeiroCD TEXT,
-            HinsyuCD TEXT, SanchiName TEXT
+        CREATE TABLE IF NOT EXISTS NL_UM_UMA (
+            KettoNum TEXT PRIMARY KEY, Bamei TEXT, SexCD TEXT,
+            KeiroCD TEXT, HinsyuCD TEXT, SanchiName TEXT
         )
     """)
+
+    # NL_KS_KISYU（騎手マスタ）
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS NL_KS (
-            KisyuCode TEXT, KisyuName TEXT, MinaraiCD TEXT,
-            SexCD TEXT, BirthDate TEXT
+        CREATE TABLE IF NOT EXISTS NL_KS_KISYU (
+            KisyuCode TEXT PRIMARY KEY, KisyuName TEXT,
+            MinaraiCD TEXT, SexCD TEXT, BirthDate TEXT
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS NL_O1 (
-            Year TEXT, MonthDay TEXT, JyoCD TEXT, Kaiji TEXT, Nichiji TEXT,
-            RaceNum TEXT, Umaban TEXT, Odds TEXT, Ninki TEXT
-        )
-    """)
+
     conn.commit()
 
 
 def seed_races(conn: sqlite3.Connection) -> list[dict]:
-    """レースデータを3日分（1日12R × 3日 = 36R）投入する。"""
-    random.seed(42)  # 再現性のためシード固定
+    """レースデータを3日分投入する。"""
+    random.seed(42)
 
     race_list = []
-    days = [("0105", "01"), ("0106", "02"), ("0112", "03")]  # 3開催日
+    days = [("0105", "01"), ("0106", "02"), ("0112", "03")]
 
     for month_day, nichiji in days:
         for race_num in range(1, 13):
             course = random.choice(COURSE_CONDITIONS)
             kyori, track_type, track_cd = course
 
-            # 重賞レースは特定のRaceNumに配置
             race_name = RACE_NAMES.get(race_num, f"{race_num}R")
             if race_num == 1 and month_day == "0105":
                 race_name = "中山金杯"
                 kyori = "2000"
-                track_cd = "01"
+                track_cd = "10"
 
             num_horses = random.randint(8, 18)
-            hasso_time = f"{9 + race_num}:{random.choice(['00', '10', '25', '35', '50'])}"
-
-            race_data = {
-                "Year": "2025", "MonthDay": month_day, "JyoCD": "06",
-                "Kaiji": "01", "Nichiji": nichiji, "RaceNum": f"{race_num:02d}",
-                "RaceName": race_name, "Kyori": kyori, "TrackCD": track_cd,
-                "TenkoBaba": random.choice(["10", "11", "12", "20"]),  # 晴良/晴稍/曇良/雨良
-                "Syubetucd": "11" if race_num <= 8 else "12",  # サラ系2歳/3歳以上
-                "JyokenCD": "A1" if race_num == 1 and month_day == "0105" else "XX",
-                "HassoTime": hasso_time,
-                "LapTime": "",
-                "Ninkiord": "",
-                "num_horses": num_horses,
-            }
+            tenko_cd = random.choice(["1", "2", "3"])
+            baba_cd = random.choice(["1", "2", "3", "4"])
+            grade_cd = " " if race_num != 1 or month_day != "0105" else "B"
 
             conn.execute(
-                """INSERT INTO NL_RA VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                """INSERT INTO NL_RA_RACE (
+                    headRecordSpec, headDataKubun, headMakeDate,
+                    idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum,
+                    RaceInfoHondai, RaceInfoRyakusyo6,
+                    GradeCD, JyokenInfoSyubetuCD,
+                    Kyori, TrackCD, CourseKubunCD,
+                    HassoTime, TorokuTosu, SyussoTosu, NyusenTosu,
+                    TenkoBabaTenkoCD, TenkoBabaSibaBabaCD, TenkoBabaDirtBabaCD,
+                    HaronTimeL3
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    race_data["Year"], race_data["MonthDay"], race_data["JyoCD"],
-                    race_data["Kaiji"], race_data["Nichiji"], race_data["RaceNum"],
-                    race_data["RaceName"], race_data["Kyori"], race_data["TrackCD"],
-                    race_data["TenkoBaba"], race_data["Syubetucd"], race_data["JyokenCD"],
-                    race_data["HassoTime"], race_data["LapTime"], race_data["Ninkiord"],
+                    "RA", "7", "20250120",
+                    "2025", month_day, "06", "01", nichiji, f"{race_num:02d}",
+                    race_name, race_name[:6],
+                    grade_cd, "11",
+                    kyori, track_cd, "A ",
+                    f"{9 + race_num:02d}{random.choice(['00', '10', '25', '35'])}",
+                    str(num_horses), str(num_horses), str(num_horses),
+                    tenko_cd, baba_cd, baba_cd,
+                    f"{random.uniform(34.0, 37.0):.1f}",
                 ),
             )
-            race_list.append(race_data)
+            race_list.append({
+                "Year": "2025", "MonthDay": month_day, "JyoCD": "06",
+                "Kaiji": "01", "Nichiji": nichiji, "RaceNum": f"{race_num:02d}",
+                "Kyori": kyori, "TrackCD": track_cd,
+                "num_horses": num_horses,
+            })
 
     conn.commit()
     return race_list
 
 
 def seed_entries(conn: sqlite3.Connection, race_list: list[dict]) -> None:
-    """出走馬データを投入する。"""
+    """出走馬データ・オッズ・払戻を投入する。
+
+    固定馬プール（HORSE_POOL）からランダムに選出し、
+    同一馬が複数レースに出走することで前走データが生成される。
+    """
     random.seed(42)
-    used_ketto = set()
-    ketto_counter = 1000
+    used_ketto: set[str] = set()
 
     for race in race_list:
         num_horses = race["num_horses"]
         favorite_idx = random.randint(0, min(2, num_horses - 1))
         odds_list = _random_odds(num_horses, favorite_idx)
-
-        # 人気順にソート用のインデックス
         odds_sorted_indices = sorted(range(num_horses), key=lambda i: odds_list[i])
 
-        horses = random.sample(HORSE_NAMES, min(num_horses, len(HORSE_NAMES)))
+        # 馬プールからランダムに選出（同一馬の再出走あり）
+        selected_horses = random.sample(HORSE_POOL, min(num_horses, len(HORSE_POOL)))
         jockeys = random.choices(JOCKEY_NAMES, k=num_horses)
 
+        # 着順をランダムに割り当て
+        finish_order = list(range(1, num_horses + 1))
+        random.shuffle(finish_order)
+
+        # 4コーナー順位（着順と相関あるがシャッフル）
+        corner4 = list(range(1, num_horses + 1))
+        random.shuffle(corner4)
+
         for i in range(num_horses):
-            ketto_counter += 1
-            ketto_num = f"{ketto_counter:010d}"
+            pool_horse = selected_horses[i]
+            ketto_num = pool_horse["KettoNum"]
 
             umaban = f"{i + 1:02d}"
-            wakuban = f"{(i // 2) + 1:01d}"
+            wakuban = f"{(i // 2) + 1}"
             ninki = str(odds_sorted_indices.index(i) + 1)
 
-            # スピード指数（60〜120、人気馬ほど高い傾向）
-            base_speed = 90 - (int(ninki) * 3) + random.randint(-5, 10)
-            speed_index = max(50, min(130, base_speed))
+            # 馬体重（3カラム分離）
+            bataijyu = str(random.randint(420, 540))
+            zogen_diff = random.choice([0, 0, 2, 2, 4, 6, 8, 10])
+            zogen_fugo = random.choice(["+", "-", " "])
+            zogen_sa = str(zogen_diff)
 
-            # 着順（人気馬が必ず勝つわけではないリアルな分布）
-            time_str = _random_time(race["Kyori"])
+            # 脚質
+            kyakusitu = str(random.choice([1, 1, 2, 2, 2, 3, 3, 3, 4]))
+
+            # DM予想順位（人気と相関ありだが完全一致ではない）
+            dm_jyuni = str(max(1, min(num_horses, int(ninki) + random.randint(-3, 3))))
 
             conn.execute(
-                """INSERT INTO NL_SE VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                """INSERT INTO NL_SE_RACE_UMA (
+                    headRecordSpec, headDataKubun, headMakeDate,
+                    idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum,
+                    Wakuban, Umaban, KettoNum, Bamei,
+                    SexCD, Barei, Futan,
+                    KisyuRyakusyo, ChokyosiRyakusyo,
+                    BaTaijyu, ZogenFugo, ZogenSa,
+                    KakuteiJyuni, Ninki, Odds, Time,
+                    HaronTimeL3,
+                    DMJyuni, KyakusituKubun,
+                    Jyuni1c, Jyuni2c, Jyuni3c, Jyuni4c
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
+                    "SE", "7", "20250120",
                     race["Year"], race["MonthDay"], race["JyoCD"],
                     race["Kaiji"], race["Nichiji"], race["RaceNum"],
-                    umaban, wakuban, ketto_num,
-                    horses[i] if i < len(horses) else f"馬{i+1}",
-                    random.choice(["1", "2", "3"]),  # 牡/牝/セン
-                    str(random.randint(2, 8)),  # 馬齢
-                    str(random.choice([52.0, 53.0, 54.0, 55.0, 56.0, 57.0, 58.0])),  # 斤量
-                    jockeys[i],
-                    f"オーナー{random.randint(1, 30)}",
-                    f"調教師{random.randint(1, 20)}",
-                    _random_weight(),
-                    time_str,
-                    str(random.randint(1, num_horses)),  # 着順
-                    ninki,
-                    str(random.randint(40, 80)),  # IDM
-                    str(speed_index),
+                    wakuban, umaban, ketto_num,
+                    pool_horse["Bamei"],
+                    pool_horse["SexCD"],
+                    pool_horse["Barei"],
+                    str(random.choice([520, 530, 540, 550, 560, 570, 580])),
+                    jockeys[i][:4], f"調教{random.randint(1, 20):02d}",
+                    bataijyu, zogen_fugo, zogen_sa,
+                    str(finish_order[i]), ninki,
+                    str(int(odds_list[i] * 10)),
+                    _random_time(race["Kyori"]),
+                    _random_haron_l3(),
+                    dm_jyuni, kyakusitu,
+                    str(corner4[i]),
+                    str(max(1, corner4[i] + random.randint(-2, 2))),
+                    str(max(1, corner4[i] + random.randint(-2, 2))),
+                    str(corner4[i]),
                 ),
             )
 
-            # 単勝オッズ
-            conn.execute(
-                """INSERT INTO NL_O1 VALUES (?,?,?,?,?,?,?,?,?)""",
-                (
-                    race["Year"], race["MonthDay"], race["JyoCD"],
-                    race["Kaiji"], race["Nichiji"], race["RaceNum"],
-                    umaban, str(odds_list[i]), ninki,
-                ),
-            )
-
-            # 馬マスタ（NL_HR, NL_UM）
+            # 馬マスタ（初回のみ）
             if ketto_num not in used_ketto:
-                horse_name = horses[i] if i < len(horses) else f"馬{i+1}"
-                sex_cd = random.choice(["1", "2", "3"])
                 conn.execute(
-                    """INSERT INTO NL_HR VALUES (?,?,?,?,?,?,?,?,?)""",
-                    (
-                        ketto_num, horse_name, sex_cd,
-                        f"20{random.randint(18, 23)}0{random.randint(1, 9):01d}{random.randint(10, 28):02d}",
-                        f"父馬{random.randint(1, 50)}", f"母馬{random.randint(1, 50)}",
-                        f"オーナー{random.randint(1, 30)}", f"調教師{random.randint(1, 20)}",
-                        "美浦" if random.random() > 0.5 else "栗東",
-                    ),
-                )
-                conn.execute(
-                    """INSERT INTO NL_UM VALUES (?,?,?,?,?,?)""",
-                    (
-                        ketto_num, horse_name, sex_cd,
-                        random.choice(["01", "02", "03", "04", "05", "07"]),  # 毛色
-                        "01",  # 品種
-                        "日本" if random.random() > 0.2 else random.choice(["米国", "英国", "仏国"]),
-                    ),
+                    "INSERT INTO NL_UM_UMA VALUES (?,?,?,?,?,?)",
+                    (ketto_num, pool_horse["Bamei"], pool_horse["SexCD"],
+                     random.choice(["01", "02", "03", "04"]), "01", "日本"),
                 )
                 used_ketto.add(ketto_num)
+
+        # --- NL_O1_ODDS_TANFUKUWAKU（1行=1レース、横持ち）---
+        o1_cols = ["headRecordSpec", "headDataKubun", "headMakeDate",
+                   "idYear", "idMonthDay", "idJyoCD", "idKaiji", "idNichiji", "idRaceNum",
+                   "TorokuTosu", "SyussoTosu"]
+        o1_vals: list[str] = ["O1", "4", "20250120",
+                              race["Year"], race["MonthDay"], race["JyoCD"],
+                              race["Kaiji"], race["Nichiji"], race["RaceNum"],
+                              str(num_horses), str(num_horses)]
+
+        for idx in range(28):
+            if idx < num_horses:
+                o1_cols.extend([
+                    f"OddsTansyoInfo{idx}Umaban",
+                    f"OddsTansyoInfo{idx}Odds",
+                    f"OddsTansyoInfo{idx}Ninki",
+                ])
+                o1_vals.extend([
+                    f"{idx + 1:02d}",
+                    str(int(odds_list[idx] * 10)),
+                    str(odds_sorted_indices.index(idx) + 1),
+                ])
+            else:
+                o1_cols.extend([
+                    f"OddsTansyoInfo{idx}Umaban",
+                    f"OddsTansyoInfo{idx}Odds",
+                    f"OddsTansyoInfo{idx}Ninki",
+                ])
+                o1_vals.extend(["", "", ""])
+
+        placeholders = ",".join(["?"] * len(o1_vals))
+        conn.execute(
+            f"INSERT INTO NL_O1_ODDS_TANFUKUWAKU ({','.join(o1_cols)}) VALUES ({placeholders})",
+            o1_vals,
+        )
+
+        # --- NL_HR_PAY（払戻情報）---
+        # 1着馬を特定（着順=1の馬）
+        winner_idx = finish_order.index(1)
+        second_idx = finish_order.index(2)
+        third_idx = finish_order.index(3)
+
+        tansyo_pay = int(odds_list[winner_idx] * 100)
+        conn.execute(
+            """INSERT INTO NL_HR_PAY (
+                headRecordSpec, headDataKubun, headMakeDate,
+                idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum,
+                TorokuTosu, SyussoTosu,
+                PayTansyo0Umaban, PayTansyo0Pay, PayTansyo0Ninki,
+                PayFukusyo0Umaban, PayFukusyo0Pay, PayFukusyo0Ninki,
+                PayFukusyo1Umaban, PayFukusyo1Pay, PayFukusyo1Ninki,
+                PayFukusyo2Umaban, PayFukusyo2Pay, PayFukusyo2Ninki
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                "HR", "2", "20250120",
+                race["Year"], race["MonthDay"], race["JyoCD"],
+                race["Kaiji"], race["Nichiji"], race["RaceNum"],
+                str(num_horses), str(num_horses),
+                f"{winner_idx + 1:02d}", str(tansyo_pay),
+                str(odds_sorted_indices.index(winner_idx) + 1),
+                f"{winner_idx + 1:02d}", str(int(tansyo_pay * 0.3)),
+                str(odds_sorted_indices.index(winner_idx) + 1),
+                f"{second_idx + 1:02d}", str(int(odds_list[second_idx] * 30)),
+                str(odds_sorted_indices.index(second_idx) + 1),
+                f"{third_idx + 1:02d}", str(int(odds_list[third_idx] * 25)),
+                str(odds_sorted_indices.index(third_idx) + 1),
+            ),
+        )
 
     conn.commit()
 
@@ -308,10 +446,9 @@ def seed_jockeys(conn: sqlite3.Connection) -> None:
     """騎手マスタを投入する。"""
     for i, name in enumerate(JOCKEY_NAMES):
         conn.execute(
-            """INSERT INTO NL_KS VALUES (?,?,?,?,?)""",
+            "INSERT INTO NL_KS_KISYU VALUES (?,?,?,?,?)",
             (
-                f"{i + 1:05d}", name, "1",  # 1=免許あり
-                "1",  # 男性
+                f"{i + 1:05d}", name, "1", "1",
                 f"19{random.randint(80, 99)}{random.randint(1, 12):02d}{random.randint(1, 28):02d}",
             ),
         )
@@ -323,7 +460,6 @@ def main(db_path: str = "./data/demo.db") -> None:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 既存DBを削除して再作成
     if path.exists():
         path.unlink()
         print(f"既存DB削除: {path}")
@@ -332,7 +468,7 @@ def main(db_path: str = "./data/demo.db") -> None:
     try:
         # 1. JVLinkテーブル作成
         create_jvlink_tables(conn)
-        print("JVLinkテーブル作成完了")
+        print("JVLink実スキーマテーブル作成完了")
 
         # 2. 拡張テーブル作成
         from scripts.init_db import EXTENSION_TABLES, INDEXES
@@ -347,9 +483,9 @@ def main(db_path: str = "./data/demo.db") -> None:
         race_list = seed_races(conn)
         print(f"レースデータ投入: {len(race_list)}レース")
 
-        # 4. 出走馬・オッズデータ投入
+        # 4. 出走馬・オッズ・払戻データ投入
         seed_entries(conn, race_list)
-        total_entries = conn.execute("SELECT COUNT(*) FROM NL_SE").fetchone()[0]
+        total_entries = conn.execute("SELECT COUNT(*) FROM NL_SE_RACE_UMA").fetchone()[0]
         print(f"出走馬データ投入: {total_entries}頭")
 
         # 5. 騎手マスタ投入
@@ -359,7 +495,8 @@ def main(db_path: str = "./data/demo.db") -> None:
         # 6. サマリー出力
         print(f"\n=== ダミーデータ生成完了 ===")
         print(f"DBパス: {path.resolve()}")
-        for table in ["NL_RA", "NL_SE", "NL_HR", "NL_UM", "NL_KS", "NL_O1"]:
+        for table in ["NL_RA_RACE", "NL_SE_RACE_UMA", "NL_HR_PAY",
+                       "NL_O1_ODDS_TANFUKUWAKU", "NL_UM_UMA", "NL_KS_KISYU"]:
             count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"  {table}: {count:,}件")
 
