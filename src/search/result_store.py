@@ -1,12 +1,12 @@
 """探索結果のDB永続化。"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from loguru import logger
 
 from src.data.db import DatabaseManager
-from src.search.config import SearchConfig, TrialConfig, TrialResult
+from src.search.config import SearchConfig, TrialResult
 
 SEARCH_TABLES_DDL = [
     """
@@ -77,7 +77,7 @@ class ResultStore:
 
     def create_session(self, config: SearchConfig) -> str:
         """セッション開始を記録する。"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._db.execute_write(
             """INSERT INTO search_sessions
             (session_id, date_from, date_to, n_trials,
@@ -94,7 +94,7 @@ class ResultStore:
 
     def save_trial(self, session_id: str, result: TrialResult) -> None:
         """トライアル結果を保存する。"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         c = result.config
         self._db.execute_write(
             """INSERT INTO search_trials
@@ -176,7 +176,7 @@ class ResultStore:
         elapsed: float = 0.0,
     ) -> None:
         """セッション完了を記録する。"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._db.execute_write(
             """UPDATE search_sessions
             SET status = ?, best_trial_id = ?,

@@ -5,8 +5,8 @@ Slack Webhook / SMTP Email / コンソールログの3チャネルで通知を�
 
 import json
 import smtplib
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from email.mime.text import MIMEText
 from typing import Any
@@ -144,7 +144,11 @@ class Notifier:
         if not url:
             return False
 
-        emoji = {"DEBUG": ":mag:", "INFO": ":white_check_mark:", "WARNING": ":warning:", "ERROR": ":x:"}.get(level, ":bell:")
+        emoji_map = {
+            "DEBUG": ":mag:", "INFO": ":white_check_mark:",
+            "WARNING": ":warning:", "ERROR": ":x:",
+        }
+        emoji = emoji_map.get(level, ":bell:")
         payload = {
             "text": f"{emoji} *{title}*\n```{message}```",
         }

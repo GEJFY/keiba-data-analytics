@@ -10,7 +10,6 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
-from numpy.typing import NDArray
 
 from src.data.db import DatabaseManager
 from src.data.provider import JVLinkDataProvider

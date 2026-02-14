@@ -266,9 +266,12 @@ class TestPagePnlMonthlyHelpers:
         from src.dashboard.pages.page_pnl import _build_bet_type_stats
 
         df = pd.DataFrame([
-            {"bet_id": 1, "bet_type": "WIN", "stake_yen": 1000, "payout_yen": 5000, "status": "SETTLED", "result": "WIN"},
-            {"bet_id": 2, "bet_type": "WIN", "stake_yen": 1000, "payout_yen": 0, "status": "SETTLED", "result": "LOSE"},
-            {"bet_id": 3, "bet_type": "PLACE", "stake_yen": 2000, "payout_yen": 3000, "status": "SETTLED", "result": "WIN"},
+            {"bet_id": 1, "bet_type": "WIN", "stake_yen": 1000,
+             "payout_yen": 5000, "status": "SETTLED", "result": "WIN"},
+            {"bet_id": 2, "bet_type": "WIN", "stake_yen": 1000,
+             "payout_yen": 0, "status": "SETTLED", "result": "LOSE"},
+            {"bet_id": 3, "bet_type": "PLACE", "stake_yen": 2000,
+             "payout_yen": 3000, "status": "SETTLED", "result": "WIN"},
         ])
         stats = _build_bet_type_stats(df)
         assert not stats.empty

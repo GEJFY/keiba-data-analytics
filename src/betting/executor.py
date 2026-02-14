@@ -10,10 +10,9 @@
 
 import csv
 import json
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 
@@ -113,7 +112,7 @@ class BetExecutor:
 
     def _execute_dryrun(self, bets: list[Bet]) -> list[BetExecutionResult]:
         """ドライラン方式: ログ出力のみ。"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         results = []
         for bet in bets:
             logger.info(
@@ -141,7 +140,7 @@ class BetExecutor:
         ipatgo互換のCSVフォーマットで出力し、
         外部ツールでIPATへ投票する。
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._csv_output_dir.mkdir(parents=True, exist_ok=True)
 
         date_str = race_date.replace("-", "") or datetime.now().strftime("%Y%m%d")
@@ -196,7 +195,7 @@ class BetExecutor:
         Selenium WebDriverによるIPAT自動操作は
         セキュリティ上の理由から手動拡張を前提とする。
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         results = []
         for bet in bets:
             results.append(BetExecutionResult(
@@ -221,7 +220,7 @@ class BetExecutor:
             logger.warning("betsテーブルが存在しません — 記録をスキップ")
             return
 
-        for bet, result in zip(bets, results):
+        for bet, result in zip(bets, results, strict=False):
             try:
                 self._db.execute_write(
                     """INSERT INTO bets

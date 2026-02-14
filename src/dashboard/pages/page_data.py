@@ -5,7 +5,6 @@ JVLink同期、拡張データ削除の機能を提供する。
 バックグラウンド実行対応。
 """
 
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -559,10 +558,7 @@ st.caption(
 
 delete_data = []
 for tbl, desc in DELETABLE_TABLES.items():
-    if ext_db.table_exists(tbl):
-        cnt = ext_db.execute_query(f"SELECT COUNT(*) as cnt FROM [{tbl}]")[0]["cnt"]
-    else:
-        cnt = 0
+    cnt = ext_db.execute_query(f"SELECT COUNT(*) as cnt FROM [{tbl}]")[0]["cnt"] if ext_db.table_exists(tbl) else 0
     delete_data.append({"テーブル": tbl, "説明": desc, "件数": cnt})
 
 st.dataframe(pd.DataFrame(delete_data), use_container_width=True, hide_index=True)

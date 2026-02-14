@@ -1,7 +1,6 @@
 """Plotlyチャートコンポーネントのテスト。"""
 
 import plotly.graph_objects as go
-import pytest
 
 from src.dashboard.components.charts import (
     bar_chart,
@@ -100,7 +99,7 @@ class TestMonthlyHeatmap:
         fig = monthly_heatmap([2025], list(range(1, 13)), values)
         assert isinstance(fig, go.Figure)
         # Plotlyは内部で型変換する場合がある（list/tuple）ため値のみ比較
-        for actual_row, expected_row in zip(fig.data[0].z, values):
+        for actual_row, expected_row in zip(fig.data[0].z, values, strict=False):
             assert list(actual_row) == expected_row
 
     def test_custom_title(self) -> None:

@@ -34,7 +34,7 @@ def cumulative_pnl_chart(
     title: str = "Cumulative P&L",
 ) -> go.Figure:
     """累積P&L面グラフ。利益は緑、損失は赤で塗り分け。"""
-    colors = [ACCENT_GREEN if v >= 0 else ACCENT_RED for v in cumulative_pnl]
+    [ACCENT_GREEN if v >= 0 else ACCENT_RED for v in cumulative_pnl]
 
     fig = go.Figure()
     fig.add_trace(
@@ -447,7 +447,7 @@ def importance_chart(
     """Permutation Importance横棒グラフ（降順）。"""
     # 降順ソート
     sorted_pairs = sorted(
-        zip(factor_names, importances), key=lambda x: x[1], reverse=True
+        zip(factor_names, importances, strict=False), key=lambda x: x[1], reverse=True
     )
     names = [p[0] for p in sorted_pairs]
     vals = [p[1] for p in sorted_pairs]

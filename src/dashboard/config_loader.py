@@ -48,10 +48,7 @@ def get_db_managers(
 
     # JVLink DB
     jvlink_path = db_config.get("jvlink_db_path", "")
-    if jvlink_path:
-        jvlink_resolved = (PROJECT_ROOT / jvlink_path).resolve()
-    else:
-        jvlink_resolved = FALLBACK_DB_PATH
+    jvlink_resolved = (PROJECT_ROOT / jvlink_path).resolve() if jvlink_path else FALLBACK_DB_PATH
     if not jvlink_resolved.exists():
         logger.warning(
             f"JVLink DBが見つかりません: {jvlink_resolved} — "
@@ -61,10 +58,7 @@ def get_db_managers(
 
     # 拡張DB
     ext_path = db_config.get("extension_db_path", "")
-    if ext_path:
-        ext_resolved = (PROJECT_ROOT / ext_path).resolve()
-    else:
-        ext_resolved = FALLBACK_DB_PATH
+    ext_resolved = (PROJECT_ROOT / ext_path).resolve() if ext_path else FALLBACK_DB_PATH
     if not ext_resolved.exists():
         logger.warning(
             f"拡張DBが見つかりません: {ext_resolved} — "

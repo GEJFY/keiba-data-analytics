@@ -450,17 +450,16 @@ class DataValidator:
         # --- 3. データカバレッジ ---
         coverage = self.check_data_coverage()
         results["data_coverage"] = coverage
-        if coverage:
-            if coverage.get("race_count"):
-                check_items.append(CheckItem(
-                    category="coverage",
-                    name="データ範囲",
-                    status="OK",
-                    detail=(
-                        f"{coverage['min_date']} 〜 {coverage['max_date']} / "
-                        f"{coverage['day_count']}開催日 / {coverage['race_count']}レース"
-                    ),
-                ))
+        if coverage and coverage.get("race_count"):
+            check_items.append(CheckItem(
+                category="coverage",
+                name="データ範囲",
+                status="OK",
+                detail=(
+                    f"{coverage['min_date']} 〜 {coverage['max_date']} / "
+                    f"{coverage['day_count']}開催日 / {coverage['race_count']}レース"
+                ),
+            ))
 
         # --- 4. テーブル間整合性 ---
         cross_checks = self.check_cross_consistency()

@@ -12,7 +12,7 @@ GY指数方式に基づき、各馬にファクタースコアを付与し、
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -235,7 +235,7 @@ class ScoringEngine:
             logger.warning("horse_scoresテーブルが存在しません")
             return 0
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         saved = 0
 
         for result in scored_results:

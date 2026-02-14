@@ -9,10 +9,9 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
-from numpy.typing import NDArray
 
-from src.backtest.engine import BacktestConfig, BacktestEngine, BacktestResult
-from src.backtest.metrics import BacktestMetrics, calculate_metrics
+from src.backtest.engine import BacktestConfig, BacktestEngine
+from src.backtest.metrics import calculate_metrics
 from src.backtest.monte_carlo import MonteCarloSimulator
 from src.backtest.walk_forward import WalkForwardEngine, _filter_races, _parse_date
 from src.betting.bankroll import BankrollManager, BettingMethod
@@ -25,7 +24,6 @@ from src.scoring.calibration import (
     PlattCalibrator,
     ProbabilityCalibrator,
 )
-from src.scoring.engine import ScoringEngine
 from src.scoring.evaluator import evaluate_rule
 from src.search.config import (
     SearchConfig,
@@ -271,10 +269,9 @@ class TrialRunner:
             result.n_factors_used = len(rules)
 
             # 2. Walk-Forward窓生成
-            from datetime import timedelta
 
-            d_from = _parse_date(search_config.date_from)
-            d_to = _parse_date(search_config.date_to)
+            _parse_date(search_config.date_from)
+            _parse_date(search_config.date_to)
 
             try:
                 windows = WalkForwardEngine.generate_windows(
@@ -505,7 +502,7 @@ class TrialRunner:
         abs_coefs = np.abs(coefs)
         max_abs = abs_coefs.max() if abs_coefs.max() > 0 else 1.0
         weight_map = {}
-        for name, coef in zip(selected_names, coefs):
+        for name, coef in zip(selected_names, coefs, strict=False):
             normalized = abs(coef) / max_abs * 3.0
             weight_map[name] = round(max(0.1, normalized), 2)
 
@@ -551,10 +548,7 @@ class TrialRunner:
             w = rule_weight_map.get(name, 0.0)
             scores += X[:, i] * w
 
-        if config.calibration_method == "platt":
-            cal = PlattCalibrator()
-        else:
-            cal = IsotonicCalibrator()
+        cal = PlattCalibrator() if config.calibration_method == "platt" else IsotonicCalibrator()
 
         try:
             cal.fit(scores, y)

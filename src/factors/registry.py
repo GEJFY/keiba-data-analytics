@@ -7,7 +7,7 @@ factor_rulesテーブルとfactor_review_logテーブルを通じて
     DRAFT → TESTING → APPROVED → DEPRECATED
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from loguru import logger
@@ -53,7 +53,7 @@ class FactorRegistry:
             有効なルールのdictリスト（category, rule_id順）
         """
         if as_of_date is None:
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             return self._db.execute_query(
                 """
                 SELECT * FROM factor_rules
@@ -155,7 +155,7 @@ class FactorRegistry:
         if "rule_name" not in rule_data:
             raise KeyError("rule_dataに'rule_name'が必須です")
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         insert_sql = """
             INSERT INTO factor_rules
             (rule_name, category, description, sql_expression, weight,
@@ -199,7 +199,7 @@ class FactorRegistry:
         old = self._db.execute_query("SELECT weight FROM factor_rules WHERE rule_id = ?", (rule_id,))
         old_weight = old[0]["weight"] if old else 0.0
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._db.execute_write(
             "UPDATE factor_rules SET weight = ?, updated_at = ? WHERE rule_id = ?",
             (new_weight, now, rule_id),
@@ -233,7 +233,7 @@ class FactorRegistry:
 
         self._archive_rule(rule_id)  # 変更前の状態を保存
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         is_active = 1 if new_status == "APPROVED" else 0
         self._db.execute_write(
             """
@@ -260,7 +260,7 @@ class FactorRegistry:
         if not rule:
             return
         r = rule[0]
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._db.execute_write(
             """INSERT INTO factor_rules_archive
             (snapshot_id, rule_id, rule_name, category, description,
@@ -302,7 +302,7 @@ class FactorRegistry:
         if not self._db.table_exists("rule_set_snapshots"):
             return 0
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with self._db.connect() as conn:
             conn.execute(
                 """INSERT INTO rule_set_snapshots
@@ -362,7 +362,7 @@ class FactorRegistry:
         )
 
         restored = 0
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for ar in archived:
             self._db.execute_write(
                 """UPDATE factor_rules SET
@@ -421,7 +421,7 @@ class FactorRegistry:
         backtest_roi: float | None = None,
     ) -> None:
         """変更履歴をfactor_review_logに記録する。"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._db.execute_write(
             """
             INSERT INTO factor_review_log

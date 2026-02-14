@@ -167,10 +167,7 @@ def calculate_metrics(
             profit_factor=0.0, monthly_win_rate=0.0, calmar_ratio=0.0,
         )
 
-    if race_results:
-        results = _resolve_actual_results(bets, race_results)
-    else:
-        results = _simulate_results(bets)
+    results = _resolve_actual_results(bets, race_results) if race_results else _simulate_results(bets)
 
     total_stake = sum(r["stake"] for r in results)
     total_payout = sum(r["payout"] for r in results)

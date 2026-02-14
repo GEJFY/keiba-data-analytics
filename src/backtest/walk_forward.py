@@ -7,7 +7,7 @@
 4. オーバーフィッティング検出のため train vs test の ROI を比較
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from loguru import logger

@@ -1,11 +1,8 @@
 """config_loaderモジュールのテスト。"""
 
-import os
 from pathlib import Path
 
-import pytest
-
-from src.dashboard.config_loader import load_config, get_db_managers
+from src.dashboard.config_loader import get_db_managers, load_config
 
 
 class TestLoadConfig:

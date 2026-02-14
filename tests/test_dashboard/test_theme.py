@@ -1,6 +1,5 @@
 """テーマモジュールのテスト。"""
 
-import pytest
 
 from src.dashboard.components.theme import (
     ACCENT_BLUE,

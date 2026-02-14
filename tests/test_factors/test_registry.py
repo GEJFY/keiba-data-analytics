@@ -111,12 +111,12 @@ class TestFactorRegistryAsOfDate:
         """as_of_date指定時にtraining_to以降のルールのみ返ること。"""
         registry = FactorRegistry(initialized_db)
         # training_to=2024-06-30 のルール
-        id1 = self._create_approved_rule(
+        self._create_approved_rule(
             registry, initialized_db, "ルールA",
             training_from="2024-01-01", training_to="2024-06-30",
         )
         # training_to=2024-12-31 のルール
-        id2 = self._create_approved_rule(
+        self._create_approved_rule(
             registry, initialized_db, "ルールB",
             training_from="2024-07-01", training_to="2024-12-31",
         )
@@ -132,9 +132,9 @@ class TestFactorRegistryAsOfDate:
         """training_to未設定のルールはas_of_date指定時も返ること。"""
         registry = FactorRegistry(initialized_db)
         # 訓練期間なし
-        id1 = self._create_approved_rule(registry, initialized_db, "未設定ルール")
+        self._create_approved_rule(registry, initialized_db, "未設定ルール")
         # 訓練期間あり（未来）
-        id2 = self._create_approved_rule(
+        self._create_approved_rule(
             registry, initialized_db, "設定済みルール",
             training_from="2024-01-01", training_to="2025-12-31",
         )

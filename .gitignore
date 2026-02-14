@@ -30,7 +30,7 @@ Thumbs.db
 desktop.ini
 
 # データベース（大量データ）
-data/
+/data/
 *.db
 *.sqlite
 *.sqlite3

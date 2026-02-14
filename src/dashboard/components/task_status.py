@@ -127,7 +127,8 @@ def render_task_sidebar() -> None:
         )
 
     # クリアボタン
-    if completed or failed:
-        if st.sidebar.button("\u5b8c\u4e86\u30bf\u30b9\u30af\u3092\u30af\u30ea\u30a2", key="btn_clear_tasks"):
-            tm.clear_completed()
-            st.rerun()
+    if (completed or failed) and st.sidebar.button(
+        "\u5b8c\u4e86\u30bf\u30b9\u30af\u3092\u30af\u30ea\u30a2", key="btn_clear_tasks"
+    ):
+        tm.clear_completed()
+        st.rerun()

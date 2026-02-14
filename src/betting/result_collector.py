@@ -4,7 +4,7 @@ NL_HR_PAY（払戻テーブル）とbetsテーブルを照合し、
 投票結果（WIN/LOSE）と払戻金を確定する。
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from loguru import logger
@@ -88,7 +88,7 @@ class ResultCollector:
         payouts = race_result["payouts"]
         kakutei = race_result["kakutei_jyuni"]
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         updated = []
 
         for bet in pending_bets:

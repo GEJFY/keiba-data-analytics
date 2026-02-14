@@ -5,8 +5,6 @@
 バックグラウンド実行対応: ページ遷移しても処理が継続する。
 """
 
-import time
-from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -15,7 +13,6 @@ from src.dashboard.components.task_status import show_task_progress
 from src.dashboard.components.workflow_bar import mark_step_completed, render_workflow_bar
 from src.dashboard.config_loader import PROJECT_ROOT
 from src.dashboard.task_manager import TaskManager
-
 
 # ==============================================================
 # バックグラウンドタスク用ラッパー関数
@@ -74,6 +71,7 @@ def _run_calibrator(
     progress_callback: Any = None,
 ) -> dict:
     import numpy as np
+
     from src.scoring.calibration_trainer import CalibrationTrainer
     jvlink_db, ext_db = _create_db_managers(jvlink_db_path, ext_db_path)
     trainer = CalibrationTrainer(jvlink_db, ext_db)
@@ -316,6 +314,7 @@ def _render() -> None:
         c3.metric("Log Loss", f"{result['log_loss']:.4f}")
 
         import pandas as pd
+
         from src.dashboard.components.charts import weight_comparison_chart
         rows = []
         for name in result["weights"]:
@@ -475,8 +474,14 @@ def _render() -> None:
             st.success("冗長なファクターペアなし（|r| > 0.7 なし）")
 
         import plotly.graph_objects as go
+
         from src.dashboard.components.theme import (
-            ACCENT_BLUE, ACCENT_RED, BG_PRIMARY, BG_SECONDARY, BORDER, TEXT_PRIMARY,
+            ACCENT_BLUE,
+            ACCENT_RED,
+            BG_PRIMARY,
+            BG_SECONDARY,
+            BORDER,
+            TEXT_PRIMARY,
         )
         names = corr_result["factor_names"]
         fig_corr = go.Figure(data=go.Heatmap(
@@ -527,8 +532,13 @@ def _render() -> None:
         st.metric("分析サンプル数", f"{sens_result['n_samples']:,}")
 
         import plotly.graph_objects as go
+
         from src.dashboard.components.theme import (
-            ACCENT_GREEN, BG_PRIMARY, BG_SECONDARY, BORDER, TEXT_PRIMARY,
+            ACCENT_GREEN,
+            BG_PRIMARY,
+            BG_SECONDARY,
+            BORDER,
+            TEXT_PRIMARY,
         )
         names = sens_result["factor_names"]
         deltas = sens_result["deltas"]

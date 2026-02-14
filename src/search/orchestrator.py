@@ -6,7 +6,6 @@ import numpy as np
 from loguru import logger
 
 from src.data.db import DatabaseManager
-from src.data.provider import JVLinkDataProvider
 from src.search.config import SearchConfig, SearchSpace
 from src.search.reporter import SearchReporter, SearchSummary
 from src.search.result_store import ResultStore
@@ -149,7 +148,7 @@ class ModelSearchOrchestrator:
             self._store.save_trial(session_id, result)
 
             if (i + 1) % 10 == 0:
-                elapsed = time.perf_counter() - t_start
+                time.perf_counter() - t_start
                 logger.info(
                     f"[{completed + i + 1}/{self._config.n_trials}] "
                     f"score={result.composite_score:.1f} "

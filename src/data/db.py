@@ -6,9 +6,10 @@ WALモード、自動コミット/ロールバック、dict形式結果変換を
 """
 
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 from loguru import logger
 
@@ -103,7 +104,7 @@ class DatabaseManager:
         with self.connect() as conn:
             cursor = conn.execute(sql, params)
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return [dict(zip(columns, row, strict=False)) for row in cursor.fetchall()]
 
     def execute_write(self, sql: str, params: tuple[Any, ...] = ()) -> int:
         """INSERT/UPDATE/DELETEクエリを実行し、影響行数を返す。

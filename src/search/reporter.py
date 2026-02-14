@@ -4,7 +4,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from src.search.config import TrialResult
 from src.search.result_store import ResultStore
 
 
@@ -139,7 +138,7 @@ class SearchReporter:
         lines = [
             summary.recommendation,
             "",
-            f"--- 統計 ---",
+            "--- 統計 ---",
             f"完了: {summary.completed_trials}/{summary.total_trials} "
             f"(エラー: {summary.error_trials})",
             f"所要時間: {summary.elapsed_total_seconds:.0f}秒 "

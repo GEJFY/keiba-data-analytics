@@ -4,8 +4,12 @@ from __future__ import annotations
 
 # source値 -> (ラベル, 背景色, ツールチップ)
 SOURCE_BADGES: dict[str, tuple[str, str, str]] = {
-    "gy_initial": ("\u521d\u671f", "#58A6FF", "GY\u6307\u6570\u65b9\u5f0f\u306e\u521d\u671f\u30d5\u30a1\u30af\u30bf\u30fc"),
-    "discovery": ("\u63a2\u7d22", "#3FB950", "\u30c7\u30fc\u30bf\u30c9\u30ea\u30d6\u30f3\u767a\u898b\u3067\u8ffd\u52a0"),
+    "gy_initial": (
+        "\u521d\u671f", "#58A6FF", "GY\u6307\u6570\u65b9\u5f0f\u306e\u521d\u671f\u30d5\u30a1\u30af\u30bf\u30fc",
+    ),
+    "discovery": (
+        "\u63a2\u7d22", "#3FB950", "\u30c7\u30fc\u30bf\u30c9\u30ea\u30d6\u30f3\u767a\u898b\u3067\u8ffd\u52a0",
+    ),
     "manual": ("\u624b\u52d5", "#D29922", "\u30e6\u30fc\u30b6\u30fc\u304c\u624b\u52d5\u4f5c\u6210"),
     "ai_generated": ("AI", "#F85149", "AI\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u304c\u63d0\u6848"),
     "research": ("\u7814\u7a76", "#8B949E", "\u30ea\u30b5\u30fc\u30c1\u30d9\u30fc\u30b9\u3067\u4f5c\u6210"),

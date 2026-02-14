@@ -1,6 +1,5 @@
 """BatchScorerのテスト。"""
 
-import numpy as np
 import pytest
 
 from src.data.db import DatabaseManager

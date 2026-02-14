@@ -7,8 +7,6 @@ GY_VALUE戦略との比較ベンチマークに使用する。
 
 from typing import Any
 
-from loguru import logger
-
 from src.data.db import DatabaseManager
 from src.data.provider import JVLinkDataProvider
 from src.scoring.engine import ScoringEngine

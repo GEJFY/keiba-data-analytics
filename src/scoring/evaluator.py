@@ -18,7 +18,6 @@ from typing import Any
 
 from loguru import logger
 
-
 # 許可する組み込み関数（安全なもののみ）
 _SAFE_BUILTINS = {
     "abs": abs,
@@ -34,7 +33,8 @@ _SAFE_BUILTINS = {
 
 # 禁止するキーワード（コードインジェクション防止）
 _FORBIDDEN_PATTERNS = re.compile(
-    r"(__import__|import |exec\b|eval\b|compile\b|open\b|getattr\b|setattr\b|delattr\b|globals\b|locals\b|\bdir\b|vars\b)"
+    r"(__import__|import |exec\b|eval\b|compile\b|open\b"
+    r"|getattr\b|setattr\b|delattr\b|globals\b|locals\b|\bdir\b|vars\b)"
 )
 
 
@@ -100,10 +100,7 @@ def build_eval_context(
     l3f_values = sorted(
         [_safe_float(e.get("HaronTimeL3", 0)) for e in all_entries if _safe_float(e.get("HaronTimeL3", 0)) > 0],
     )
-    if horse_l3f > 0 and horse_l3f in l3f_values:
-        last_3f_rank = l3f_values.index(horse_l3f) + 1
-    else:
-        last_3f_rank = num_entries
+    last_3f_rank = l3f_values.index(horse_l3f) + 1 if horse_l3f > 0 and horse_l3f in l3f_values else num_entries
 
     # 人気順
     ninki = _safe_int(horse.get("Ninki", 0))
@@ -133,10 +130,7 @@ def build_eval_context(
     # 前走上がり3Fランク（同レース全馬の前走L3F中の順位）
     if all_prev_l3f and prev_last_3f > 0:
         sorted_l3f = sorted([v for v in all_prev_l3f if v > 0])
-        if prev_last_3f in sorted_l3f:
-            prev_last_3f_rank = sorted_l3f.index(prev_last_3f) + 1
-        else:
-            prev_last_3f_rank = num_entries
+        prev_last_3f_rank = sorted_l3f.index(prev_last_3f) + 1 if prev_last_3f in sorted_l3f else num_entries
     else:
         prev_last_3f_rank = num_entries
 

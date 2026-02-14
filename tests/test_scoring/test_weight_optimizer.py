@@ -1,6 +1,5 @@
 """WeightOptimizerのテスト。"""
 
-import numpy as np
 import pytest
 
 from src.data.db import DatabaseManager
@@ -136,7 +135,7 @@ class TestWeightOptimizer:
         assert result["log_loss"] >= 0.0
 
         # Weightの範囲チェック
-        for name, w in result["weights"].items():
+        for _name, w in result["weights"].items():
             assert 0.0 <= w <= WeightOptimizer.MAX_WEIGHT
 
     def test_optimize_returns_all_factors(self, dbs) -> None:

@@ -6,7 +6,7 @@ GYバリュー戦略をDBのレースデータに対して実行し、KPIを算�
 バックグラウンド実行対応。
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pandas as pd
@@ -14,6 +14,7 @@ import streamlit as st
 
 from src.backtest.engine import BacktestConfig, BacktestEngine
 from src.dashboard.components.charts import drawdown_chart, equity_curve
+from src.dashboard.components.date_defaults import backtest_defaults
 from src.dashboard.components.task_status import show_task_progress
 from src.dashboard.components.workflow_bar import mark_step_completed, render_workflow_bar
 from src.dashboard.config_loader import PROJECT_ROOT
@@ -102,7 +103,7 @@ def _run_backtest_bg(
     result = engine.run(target_races, config, progress_callback=progress_callback)
 
     # backtest_results DB保存
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     ext_db.execute_write(
         """INSERT INTO backtest_results
         (strategy_version, date_from, date_to, total_races, total_bets,
@@ -305,7 +306,6 @@ if bt_result is not None:
         del st.session_state["bt_result"]
         st.rerun()
 
-from src.dashboard.components.date_defaults import backtest_defaults
 bt_default_from, bt_default_to = backtest_defaults()
 
 with st.form("backtest_form"):

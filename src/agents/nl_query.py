@@ -8,8 +8,6 @@ LLM未設定時はパターンマッチングによるフォールバックを�
 import re
 from typing import Any
 
-from loguru import logger
-
 from src.agents.base import BaseAgent
 from src.data.db import DatabaseManager
 

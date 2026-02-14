@@ -3,7 +3,7 @@
 ファクタールールのCRUD、ステータス遷移、重み変更、初期値リセット、変更履歴を提供する。
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 import streamlit as st
@@ -173,38 +173,37 @@ tab_create, tab_transition, tab_weight, tab_reset, tab_history, tab_version = st
 )
 
 # --- 新規ルール作成 ---
-with tab_create:
-    with st.form("create_rule_form"):
-        st.subheader("新規ファクタールール作成")
-        rule_name = st.text_input("ルール名", placeholder="例: 前走着順加点")
-        category = st.selectbox("カテゴリー", CATEGORIES)
-        description = st.text_area("説明", placeholder="ルールの概要を記述")
-        sql_expression = st.text_area(
-            "SQL式 / Python式",
-            placeholder="例: CASE WHEN KakuteiJyuni <= 3 THEN -1 ELSE 1 END",
-            height=100,
-        )
-        weight = st.slider("重み", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
-        source = st.selectbox("ソース", ["manual", "ai_generated", "research"])
+with tab_create, st.form("create_rule_form"):
+    st.subheader("新規ファクタールール作成")
+    rule_name = st.text_input("ルール名", placeholder="例: 前走着順加点")
+    category = st.selectbox("カテゴリー", CATEGORIES)
+    description = st.text_area("説明", placeholder="ルールの概要を記述")
+    sql_expression = st.text_area(
+        "SQL式 / Python式",
+        placeholder="例: CASE WHEN KakuteiJyuni <= 3 THEN -1 ELSE 1 END",
+        height=100,
+    )
+    weight = st.slider("重み", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+    source = st.selectbox("ソース", ["manual", "ai_generated", "research"])
 
-        submitted = st.form_submit_button("作成 (DRAFT)")
-        if submitted and rule_name:
-            now = datetime.now(timezone.utc).isoformat()
-            rule_data = {
-                "rule_name": rule_name,
-                "category": category,
-                "description": description,
-                "sql_expression": sql_expression,
-                "weight": weight,
-                "source": source,
-                "created_at": now,
-                "updated_at": now,
-            }
-            new_id = registry.create_rule(rule_data)
-            st.success(f"ルール作成完了: rule_id = {new_id}")
-            st.rerun()
-        elif submitted:
-            st.error("ルール名を入力してください")
+    submitted = st.form_submit_button("作成 (DRAFT)")
+    if submitted and rule_name:
+        now = datetime.now(UTC).isoformat()
+        rule_data = {
+            "rule_name": rule_name,
+            "category": category,
+            "description": description,
+            "sql_expression": sql_expression,
+            "weight": weight,
+            "source": source,
+            "created_at": now,
+            "updated_at": now,
+        }
+        new_id = registry.create_rule(rule_data)
+        st.success(f"ルール作成完了: rule_id = {new_id}")
+        st.rerun()
+    elif submitted:
+        st.error("ルール名を入力してください")
 
 # --- ステータス遷移 ---
 with tab_transition:

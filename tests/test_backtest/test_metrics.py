@@ -4,9 +4,9 @@ import pytest
 
 from src.backtest.metrics import (
     BacktestMetrics,
+    _resolve_actual_results,
     calculate_metrics,
     calculate_payout,
-    _resolve_actual_results,
 )
 from src.strategy.base import Bet
 

@@ -12,7 +12,7 @@ def render_kpi_row(
         metrics: [{"label": "ROI", "value": "5.2%", "delta": "+1.2%"}, ...]
     """
     cols = st.columns(len(metrics))
-    for col, m in zip(cols, metrics):
+    for col, m in zip(cols, metrics, strict=False):
         with col:
             st.metric(
                 label=m.get("label", ""),

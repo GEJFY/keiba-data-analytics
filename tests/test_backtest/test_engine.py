@@ -2,8 +2,6 @@
 
 from typing import Any
 
-import pytest
-
 from src.backtest.engine import (
     BacktestConfig,
     BacktestEngine,

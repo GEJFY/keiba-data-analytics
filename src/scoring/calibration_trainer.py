@@ -4,7 +4,6 @@
 確率校正モデル（Platt/Isotonic）を訓練する。
 """
 
-import json
 import time
 from typing import Any
 

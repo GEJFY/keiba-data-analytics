@@ -5,8 +5,6 @@ LLM未設定時のフォールバック応答をテストする。
 
 import asyncio
 
-import pytest
-
 from src.agents.factor_proposal import FactorProposalAgent
 from src.agents.race_analysis import RaceAnalysisAgent
 from src.agents.report import ReportAgent

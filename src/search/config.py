@@ -6,7 +6,6 @@ from typing import Any
 
 import numpy as np
 
-
 # 探索空間の各次元定義
 TRAIN_WINDOW_MONTHS = [3, 6, 9, 12, 18, 24]
 EV_THRESHOLDS = [1.05, 1.10, 1.15, 1.20, 1.25, 1.30]

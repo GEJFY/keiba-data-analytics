@@ -10,6 +10,7 @@
     - 必ずdryrunで動作確認後に本番利用すること
 """
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -172,9 +173,7 @@ class SeleniumIPATExecutor:
     def close(self) -> None:
         """WebDriverを終了する。"""
         if self._driver:
-            try:
+            with contextlib.suppress(Exception):
                 self._driver.quit()
-            except Exception:
-                pass
             self._driver = None
             logger.info("Selenium WebDriver終了")

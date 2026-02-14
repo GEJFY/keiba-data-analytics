@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 
 from src.search.config import SearchConfig, TrialConfig, TrialResult
-from src.search.result_store import ResultStore, SEARCH_TABLES_DDL
+from src.search.result_store import ResultStore
 
 
 def _make_trial_config(trial_id: str = "t001", **kwargs) -> TrialConfig:

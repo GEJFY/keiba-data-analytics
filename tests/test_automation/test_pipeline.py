@@ -302,7 +302,7 @@ class TestRaceDayPipeline:
         """automation.enabled=false時にdryrunモードが強制されること。"""
         config = _make_config("ipatgo", enabled=False)
         pipeline = RaceDayPipeline(jvlink_db, ext_db, config)
-        result = pipeline.run_full(target_date="20250105")
+        pipeline.run_full(target_date="20250105")
 
         # dryrunに切り替わっているはず
         assert pipeline._config["betting"]["method"] == "dryrun"

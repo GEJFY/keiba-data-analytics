@@ -1,9 +1,7 @@
 """LLMプロバイダーの単体テスト。"""
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from src.llm_gateway.azure_provider import AzureProvider
 from src.llm_gateway.vertex_provider import VertexProvider

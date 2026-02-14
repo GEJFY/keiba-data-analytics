@@ -78,6 +78,10 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = [
+    "N806",    # ML慣例: X (特徴量行列) 等の大文字変数名を許容
+    "SIM116",  # if-elif チェーンの可読性を優先
+]
 
 [tool.coverage.run]
 source = ["src"]

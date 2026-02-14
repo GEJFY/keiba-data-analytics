@@ -55,8 +55,8 @@ class FeatureImportanceAnalyzer:
                 "baseline_accuracy": float,
             }
         """
-        from sklearn.linear_model import LogisticRegression
         from sklearn.inspection import permutation_importance
+        from sklearn.linear_model import LogisticRegression
 
         t_start = time.perf_counter()
 
@@ -116,10 +116,7 @@ class FeatureImportanceAnalyzer:
             hit_stats = self._calc_hit_rate(col, y)
 
             # 相関（ファクター値と着順の逆相関 = 良い指標）
-            if np.std(col) > 0 and np.std(jyuni) > 0:
-                correlation = float(np.corrcoef(col, -jyuni)[0, 1])
-            else:
-                correlation = 0.0
+            correlation = float(np.corrcoef(col, -jyuni)[0, 1]) if np.std(col) > 0 and np.std(jyuni) > 0 else 0.0
 
             factors_info.append({
                 "rule_name": name,
@@ -180,20 +177,11 @@ class FeatureImportanceAnalyzer:
 
         activation_rate = n_active / n_total if n_total > 0 else 0.0
 
-        if n_active > 0:
-            hit_rate_with = float(labels[active_mask].mean())
-        else:
-            hit_rate_with = 0.0
+        hit_rate_with = float(labels[active_mask].mean()) if n_active > 0 else 0.0
 
-        if n_inactive > 0:
-            hit_rate_without = float(labels[inactive_mask].mean())
-        else:
-            hit_rate_without = 0.0
+        hit_rate_without = float(labels[inactive_mask].mean()) if n_inactive > 0 else 0.0
 
-        if hit_rate_without > 0:
-            lift = hit_rate_with / hit_rate_without
-        else:
-            lift = 0.0
+        lift = hit_rate_with / hit_rate_without if hit_rate_without > 0 else 0.0
 
         return {
             "hit_rate_with": hit_rate_with,

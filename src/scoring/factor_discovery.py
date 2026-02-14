@@ -49,7 +49,7 @@ def _auc_from_labels(scores: list[float], labels: list[int]) -> float:
         return 0.5
 
     # スコアでソート
-    paired = sorted(zip(scores, labels), key=lambda x: x[0])
+    paired = sorted(zip(scores, labels, strict=False), key=lambda x: x[0])
 
     # タイ（同値）を考慮したランク割当てで正例のランク和を計算
     rank_sum = 0.0
@@ -78,8 +78,8 @@ def _point_biserial(scores: list[float], labels: list[int]) -> float:
     if n0 == 0 or n1 == 0:
         return 0.0
 
-    mean_1 = sum(s for s, l in zip(scores, labels) if l == 1) / n1
-    mean_0 = sum(s for s, l in zip(scores, labels) if l == 0) / n0
+    mean_1 = sum(s for s, lb in zip(scores, labels, strict=False) if lb == 1) / n1
+    mean_0 = sum(s for s, lb in zip(scores, labels, strict=False) if lb == 0) / n0
     overall_mean = sum(scores) / n
     overall_var = sum((s - overall_mean) ** 2 for s in scores) / n
     if overall_var == 0:
@@ -386,7 +386,7 @@ class FactorDiscovery:
             progress_callback(1, 3, "単変量分析中...")
 
         candidates = []
-        for feat_idx, feat_name in enumerate(numeric_features):
+        for _feat_idx, feat_name in enumerate(numeric_features):
             scores = [_safe_float(f.get(feat_name, 0)) for f in features_list]
             unique_vals = set(scores)
             if len(unique_vals) <= 1:
@@ -457,7 +457,7 @@ class FactorDiscovery:
         if not scores:
             return []
 
-        paired = sorted(zip(scores, labels), key=lambda x: x[0])
+        paired = sorted(zip(scores, labels, strict=False), key=lambda x: x[0])
         n = len(paired)
         quintiles = []
         for q in range(5):
@@ -467,7 +467,7 @@ class FactorDiscovery:
             if not subset:
                 continue
             vals = [s for s, _ in subset]
-            labs = [l for _, l in subset]
+            labs = [lb for _, lb in subset]
             rate = sum(labs) / len(labs) if labs else 0.0
             quintiles.append({
                 "quintile": q + 1,
@@ -530,13 +530,19 @@ class FactorDiscovery:
 
         # 最も的中率が高い五分位を特定
         best_q = max(quintiles, key=lambda q: q["win_rate"])
-        worst_q = min(quintiles, key=lambda q: q["win_rate"])
+        min(quintiles, key=lambda q: q["win_rate"])
 
         # 二値変数（0/1のみ）の場合
         unique_vals = set(scores)
-        if unique_vals <= {0.0, 1.0, 0, 1}:
-            rate_1 = sum(l for s, l in zip(scores, labels) if s == 1) / max(sum(1 for s in scores if s == 1), 1)
-            rate_0 = sum(l for s, l in zip(scores, labels) if s == 0) / max(sum(1 for s in scores if s == 0), 1)
+        if unique_vals <= {0.0, 1.0}:
+            cnt_1 = max(sum(1 for s in scores if s == 1), 1)
+            cnt_0 = max(sum(1 for s in scores if s == 0), 1)
+            rate_1 = sum(
+                lb for s, lb in zip(scores, labels, strict=False) if s == 1
+            ) / cnt_1
+            rate_0 = sum(
+                lb for s, lb in zip(scores, labels, strict=False) if s == 0
+            ) / cnt_0
             if rate_1 > rate_0:
                 return f"1 if {name} else 0"
             else:

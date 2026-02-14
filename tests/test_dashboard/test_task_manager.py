@@ -1,7 +1,7 @@
 """TaskManager のユニットテスト。"""
 
-import time
 import threading
+import time
 
 import pytest
 
@@ -82,7 +82,7 @@ class TestTaskManager:
             event.wait(5)
             return "ok"
 
-        task_id = tm.submit("slow", slow)
+        tm.submit("slow", slow)
         time.sleep(0.1)
         assert tm.has_running("slow") is True
         assert tm.has_running("other") is False
@@ -147,7 +147,6 @@ class TestTaskManager:
     def test_progress_callback_injection(self):
         """progress_callback が自動注入される。"""
         tm = TaskManager()
-        progress_values = []
 
         def tracked(progress_callback=None):
             if progress_callback:

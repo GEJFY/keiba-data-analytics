@@ -11,7 +11,7 @@ Usage:
 import json
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +128,7 @@ class RaceDayPipeline:
             self._config.setdefault("betting", {})["method"] = "dryrun"
 
         self._ensure_pipeline_table()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         result = PipelineResult(
             run_date=target_date,
@@ -177,7 +177,7 @@ class RaceDayPipeline:
                 result.errors.append(err_msg)
 
         # ステータス決定
-        result.completed_at = datetime.now(timezone.utc).isoformat()
+        result.completed_at = datetime.now(UTC).isoformat()
         if not result.errors:
             result.status = "SUCCESS"
         elif result.total_bets > 0:

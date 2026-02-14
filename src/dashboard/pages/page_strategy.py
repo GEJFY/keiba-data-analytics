@@ -6,10 +6,10 @@
 import pandas as pd
 import streamlit as st
 
-from src.dashboard.components.workflow_bar import render_workflow_bar
 from src.betting.bankroll import BankrollManager, BettingMethod
 from src.betting.executor import BetExecutor
 from src.betting.safety import SafetyGuard
+from src.dashboard.components.workflow_bar import render_workflow_bar
 from src.data.db import DatabaseManager
 from src.data.provider import JVLinkDataProvider
 from src.scoring.engine import ScoringEngine
@@ -319,7 +319,7 @@ else:
     if not can_bet:
         st.error(f"安全チェック不合格: {reason}")
     else:
-        st.success(f"安全チェック: OK")
+        st.success("安全チェック: OK")
 
         if exec_method != "dryrun":
             st.warning(

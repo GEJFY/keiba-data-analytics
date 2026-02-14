@@ -1,9 +1,6 @@
 """通知システムのテスト。"""
 
-import json
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from src.notifications.notifier import NotificationConfig, Notifier
 

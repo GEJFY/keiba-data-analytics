@@ -1,7 +1,6 @@
 """探索設定のテスト。"""
 
 import numpy as np
-import pytest
 
 from src.search.config import (
     BETTING_METHODS,

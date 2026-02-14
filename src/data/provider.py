@@ -15,6 +15,7 @@ JVLinkToSQLiteが生成する実テーブル（NL_RA_RACE, NL_SE_RACE_UMA等）�
     NL_KS_KISYU          → 騎手マスタ
 """
 
+import contextlib
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -348,18 +349,22 @@ class JVLinkDataProvider:
 
     def ensure_indexes(self) -> None:
         """バッチクエリ用インデックスを作成する（冪等）。"""
+        _race_cols = "idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum"
         indexes = [
-            "CREATE INDEX IF NOT EXISTS idx_ra_race_date ON NL_RA_RACE(idYear, idMonthDay)",
-            "CREATE INDEX IF NOT EXISTS idx_se_race_uma_race ON NL_SE_RACE_UMA(idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum)",
-            "CREATE INDEX IF NOT EXISTS idx_se_race_uma_ketto ON NL_SE_RACE_UMA(KettoNum, idYear, idMonthDay)",
-            "CREATE INDEX IF NOT EXISTS idx_o1_odds_race ON NL_O1_ODDS_TANFUKUWAKU(idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum)",
-            "CREATE INDEX IF NOT EXISTS idx_hr_pay_race ON NL_HR_PAY(idYear, idMonthDay, idJyoCD, idKaiji, idNichiji, idRaceNum)",
+            "CREATE INDEX IF NOT EXISTS idx_ra_race_date"
+            " ON NL_RA_RACE(idYear, idMonthDay)",
+            "CREATE INDEX IF NOT EXISTS idx_se_race_uma_race"
+            f" ON NL_SE_RACE_UMA({_race_cols})",
+            "CREATE INDEX IF NOT EXISTS idx_se_race_uma_ketto"
+            " ON NL_SE_RACE_UMA(KettoNum, idYear, idMonthDay)",
+            "CREATE INDEX IF NOT EXISTS idx_o1_odds_race"
+            f" ON NL_O1_ODDS_TANFUKUWAKU({_race_cols})",
+            "CREATE INDEX IF NOT EXISTS idx_hr_pay_race"
+            f" ON NL_HR_PAY({_race_cols})",
         ]
         for idx_sql in indexes:
-            try:
+            with contextlib.suppress(Exception):
                 self._db.execute_write(idx_sql)
-            except Exception:
-                pass  # テーブル未作成の場合はスキップ
 
     def fetch_races_batch(
         self,
@@ -501,10 +506,8 @@ class JVLinkDataProvider:
             except Exception:
                 # 全スレッド完了を待ってからre-raise（リソースリーク防止）
                 for f in [fut_entries, fut_odds, fut_payouts]:
-                    try:
+                    with contextlib.suppress(Exception):
                         f.result(timeout=5)
-                    except Exception:
-                        pass
                 raise
 
         # グルーピング

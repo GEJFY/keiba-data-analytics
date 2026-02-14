@@ -129,7 +129,7 @@ class WeightOptimizer:
 
         # 係数からWeightに変換
         coefs = model.coef_[0]
-        raw_coefs = {name: float(c) for name, c in zip(factor_names, coefs)}
+        raw_coefs = {name: float(c) for name, c in zip(factor_names, coefs, strict=False)}
         optimized_weights = self._normalize_coefs(coefs, factor_names)
 
         # ファクター別の結果をログ出力
@@ -243,7 +243,7 @@ class WeightOptimizer:
         max_abs = abs_coefs.max() if abs_coefs.max() > 0 else 1.0
 
         weights = {}
-        for name, coef in zip(factor_names, coefs):
+        for name, coef in zip(factor_names, coefs, strict=False):
             # 正の係数 → 正のweight、負の係数 → 0に近いweight
             # 係数の絶対値で重要度を表現し、符号で方向性を維持
             normalized = abs(coef) / max_abs * self.MAX_WEIGHT
