@@ -5,6 +5,7 @@
 """
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,6 +23,40 @@ class ProbabilityCalibrator(ABC):
     def predict_proba(self, score: float) -> float:
         """スコアから確率を予測する。"""
         ...
+
+    def save(self, path: Path) -> None:
+        """校正モデルをファイルに保存する。
+
+        Args:
+            path: 保存先パス（.joblibファイル）
+        """
+        import joblib
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(self, path)
+
+    @staticmethod
+    def load(path: Path) -> "ProbabilityCalibrator":
+        """校正モデルをファイルから読み込む。
+
+        Args:
+            path: 読込元パス
+
+        Returns:
+            訓練済みProbabilityCalibrator
+
+        Raises:
+            FileNotFoundError: ファイルが存在しない場合
+            TypeError: 不正なオブジェクト型の場合
+        """
+        import joblib
+
+        if not path.exists():
+            raise FileNotFoundError(f"校正モデルが見つかりません: {path}")
+        obj = joblib.load(path)
+        if not isinstance(obj, ProbabilityCalibrator):
+            raise TypeError(f"不正なオブジェクト型: {type(obj)}")
+        return obj
 
 
 class PlattCalibrator(ProbabilityCalibrator):

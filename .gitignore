@@ -30,12 +30,14 @@ Thumbs.db
 desktop.ini
 
 # データベース（大量データ）
+/data/
 *.db
 *.sqlite
 *.sqlite3
 mykeibadb_v3.61/
 
 # JVLinkToSQLite
+JVLinkToSQLiteArtifact/
 setting.xml
 
 # 設定ファイル（秘密情報を含む）
@@ -65,6 +67,10 @@ bet_files/
 
 # 大容量バイナリ
 *.exe
+*.dll
+
+# Windows null device artifact
+nul
 
 # Claude Code
 .claude/

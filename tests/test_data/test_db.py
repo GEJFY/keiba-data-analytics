@@ -87,10 +87,9 @@ class TestDatabaseManager:
         with db_manager.connect() as conn:
             conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY)")
 
-        with pytest.raises(sqlite3.IntegrityError):
-            with db_manager.connect() as conn:
-                conn.execute("INSERT INTO items VALUES (1)")
-                conn.execute("INSERT INTO items VALUES (1)")  # 重複エラー
+        with pytest.raises(sqlite3.IntegrityError), db_manager.connect() as conn:
+            conn.execute("INSERT INTO items VALUES (1)")
+            conn.execute("INSERT INTO items VALUES (1)")  # 重複エラー
 
         # ロールバックされているので、レコードは0件
         results = db_manager.execute_query("SELECT COUNT(*) as cnt FROM items")

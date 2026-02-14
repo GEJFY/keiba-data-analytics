@@ -5,7 +5,7 @@
 シナリオ:
     1. データ品質チェック（JVLinkテーブル検証）
     2. ファクタールール登録・ライフサイクル遷移
-    3. スコアリング（全レースの卍指数計算）
+    3. スコアリング（全レースのGY指数計算）
     4. バックテスト（模擬戦略で過去検証）
     5. 投票シミュレーション（Quarter Kelly + 安全機構）
 
@@ -110,8 +110,8 @@ def step2_factor_management(db_path: str) -> list[int]:
 
 
 def step3_scoring(db_path: str) -> list[dict[str, Any]]:
-    """Step 3: スコアリング（全レースの卍指数計算）。"""
-    _separator("Step 3: 卍指数スコアリング")
+    """Step 3: スコアリング（全レースのGY指数計算）。"""
+    _separator("Step 3: GY指数スコアリング")
 
     from src.data.db import DatabaseManager
     from src.data.provider import JVLinkDataProvider
@@ -121,8 +121,8 @@ def step3_scoring(db_path: str) -> list[dict[str, Any]]:
     provider = JVLinkDataProvider(db)
     engine = ScoringEngine(db, calibrator=None, ev_threshold=1.05)
 
-    # 全レース取得
-    races = db.execute_query("SELECT * FROM NL_RA ORDER BY MonthDay, RaceNum")
+    # 全レース取得（providerの正規化API経由）
+    races = provider.get_race_list(limit=500)
     print(f"対象レース数: {len(races)}レース\n")
 
     all_value_bets = []
@@ -131,12 +131,7 @@ def step3_scoring(db_path: str) -> list[dict[str, Any]]:
     for race_row in races[:12]:  # デモは1日分（12R）のみ
         race_key = JVLinkDataProvider.build_race_key(race_row)
         entries = provider.get_race_entries(race_key)
-        odds_rows = provider.get_odds(race_key)
-
-        # オッズマップ構築
-        odds_map = {}
-        for o in odds_rows:
-            odds_map[o["Umaban"]] = float(o["Odds"])
+        odds_map = provider.get_odds(race_key)
 
         # スコアリング実行
         results = engine.score_race(dict(race_row), entries, odds_map)
@@ -146,8 +141,9 @@ def step3_scoring(db_path: str) -> list[dict[str, Any]]:
         value_bet_count += len(value_bets)
         all_value_bets.extend(value_bets)
 
-        race_name = race_row["RaceName"]
-        print(f"  {race_row['RaceNum']}R {race_name:<12} "
+        race_name = race_row.get("RaceName", "")
+        race_num = race_row.get("RaceNum", "")
+        print(f"  {race_num}R {race_name:<12} "
               f"出走{len(entries):2d}頭 / EV>1.05: {len(value_bets):2d}頭 "
               f"/ 最高EV={results[0]['expected_value']:.3f}" if results else "")
 
@@ -186,9 +182,9 @@ def step4_backtest(db_path: str) -> None:
                 umaban = entry.get("Umaban", "")
                 entry_odds = odds.get(umaban, 0.0)
                 if entry_odds >= 3.0:
-                    # 単純なEV推定（スピード指数ベース）
-                    speed = float(entry.get("SpeedIndex", 70))
-                    est_prob = max(0.05, min(0.4, speed / 300.0))
+                    # DM予想順位ベースのEV推定
+                    dm_rank = int(entry.get("DMJyuni", 10) or 10)
+                    est_prob = max(0.05, min(0.4, (20 - dm_rank) / 50.0))
                     ev = est_prob * entry_odds
                     if ev > 1.0:
                         stake = min(bankroll // 50, 5000)
@@ -202,24 +198,20 @@ def step4_backtest(db_path: str) -> None:
                                 est_prob=est_prob,
                                 odds_at_bet=entry_odds,
                                 est_ev=ev,
-                                factor_details={"speed": speed},
+                                factor_details={"dm_rank": dm_rank},
                             ))
             return bets[:3]  # 1レース最大3頭
 
     # レースデータ構築
     db = DatabaseManager(db_path, wal_mode=False)
     provider = JVLinkDataProvider(db)
-    races_raw = db.execute_query("SELECT * FROM NL_RA ORDER BY MonthDay, RaceNum")
+    races_raw = provider.get_race_list(limit=500)
 
     backtest_races = []
     for race_row in races_raw:
         race_key = JVLinkDataProvider.build_race_key(race_row)
         entries = provider.get_race_entries(race_key)
-        odds_rows = provider.get_odds(race_key)
-
-        odds_map: dict[str, float] = {}
-        for o in odds_rows:
-            odds_map[o["Umaban"]] = float(o["Odds"])
+        odds_map = provider.get_odds(race_key)
 
         race_info = dict(race_row)
         race_info["race_key"] = race_key
@@ -351,7 +343,7 @@ def main(db_path: str = "./data/demo.db") -> None:
     """全シナリオを順次実行する。"""
     print("\n" + "=" * 60)
     print("  Keiba Data Analytics — デモシナリオ")
-    print("  卍指数方式バリュー投資戦略")
+    print("  GY指数方式バリュー投資戦略 (by Go Yoshizawa)")
     print("=" * 60)
 
     path = Path(db_path)

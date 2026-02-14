@@ -8,7 +8,7 @@ include = ["src*"]
 [project]
 name = "keiba-data-analytics"
 version = "0.1.0"
-description = "競馬定量投資プラットフォーム — 卍指数方式バリュー投資戦略"
+description = "競馬定量投資プラットフォーム — GY指数方式バリュー投資戦略 (by Go Yoshizawa)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -78,6 +78,10 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = [
+    "N806",    # ML慣例: X (特徴量行列) 等の大文字変数名を許容
+    "SIM116",  # if-elif チェーンの可読性を優先
+]
 
 [tool.coverage.run]
 source = ["src"]

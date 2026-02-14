@@ -78,3 +78,135 @@ class TestFactorRegistry:
         )
         assert len(logs) >= 1
         assert logs[0]["action"] == "CREATED"
+
+
+@pytest.mark.unit
+class TestFactorRegistryAsOfDate:
+    """get_active_rules(as_of_date) のテスト。"""
+
+    def _create_approved_rule(
+        self,
+        registry: FactorRegistry,
+        db: DatabaseManager,
+        rule_name: str,
+        training_from: str = "",
+        training_to: str = "",
+    ) -> int:
+        """APPROVEDルールを作成し、訓練期間を設定する。"""
+        rule_id = registry.create_rule({
+            "rule_name": rule_name,
+            "category": "テスト",
+            "weight": 1.0,
+        })
+        registry.transition_status(rule_id, "TESTING", reason="検証開始")
+        registry.transition_status(rule_id, "APPROVED", reason="検証合格")
+        if training_from or training_to:
+            db.execute_write(
+                "UPDATE factor_rules SET training_from = ?, training_to = ? WHERE rule_id = ?",
+                (training_from, training_to, rule_id),
+            )
+        return rule_id
+
+    def test_as_of_date_filters_trained_rules(self, initialized_db: DatabaseManager) -> None:
+        """as_of_date指定時にtraining_to以降のルールのみ返ること。"""
+        registry = FactorRegistry(initialized_db)
+        # training_to=2024-06-30 のルール
+        self._create_approved_rule(
+            registry, initialized_db, "ルールA",
+            training_from="2024-01-01", training_to="2024-06-30",
+        )
+        # training_to=2024-12-31 のルール
+        self._create_approved_rule(
+            registry, initialized_db, "ルールB",
+            training_from="2024-07-01", training_to="2024-12-31",
+        )
+
+        # as_of_date=2024-07-01 → ルールA(training_to=06-30 < 07-01)は返る、
+        # ルールB(training_to=12-31 >= 07-01)は返らない
+        rules = registry.get_active_rules(as_of_date="2024-07-01")
+        names = {r["rule_name"] for r in rules}
+        assert "ルールA" in names
+        assert "ルールB" not in names
+
+    def test_as_of_date_includes_null_training(self, initialized_db: DatabaseManager) -> None:
+        """training_to未設定のルールはas_of_date指定時も返ること。"""
+        registry = FactorRegistry(initialized_db)
+        # 訓練期間なし
+        self._create_approved_rule(registry, initialized_db, "未設定ルール")
+        # 訓練期間あり（未来）
+        self._create_approved_rule(
+            registry, initialized_db, "設定済みルール",
+            training_from="2024-01-01", training_to="2025-12-31",
+        )
+
+        rules = registry.get_active_rules(as_of_date="2025-01-01")
+        names = {r["rule_name"] for r in rules}
+        assert "未設定ルール" in names
+        assert "設定済みルール" not in names
+
+    def test_as_of_date_none_returns_all(self, initialized_db: DatabaseManager) -> None:
+        """as_of_date=Noneの場合、従来動作（全ルール返却）。"""
+        registry = FactorRegistry(initialized_db)
+        self._create_approved_rule(
+            registry, initialized_db, "全取得テスト",
+            training_from="2020-01-01", training_to="2099-12-31",
+        )
+        rules = registry.get_active_rules(as_of_date=None)
+        names = {r["rule_name"] for r in rules}
+        assert "全取得テスト" in names
+
+
+@pytest.mark.unit
+class TestCheckTrainingOverlap:
+    """check_training_overlap() のテスト。"""
+
+    def _create_approved_rule(
+        self,
+        registry: FactorRegistry,
+        db: DatabaseManager,
+        rule_name: str,
+        training_from: str = "",
+        training_to: str = "",
+    ) -> int:
+        rule_id = registry.create_rule({
+            "rule_name": rule_name, "category": "テスト", "weight": 1.0,
+        })
+        registry.transition_status(rule_id, "TESTING", reason="検証開始")
+        registry.transition_status(rule_id, "APPROVED", reason="検証合格")
+        if training_from or training_to:
+            db.execute_write(
+                "UPDATE factor_rules SET training_from = ?, training_to = ? WHERE rule_id = ?",
+                (training_from, training_to, rule_id),
+            )
+        return rule_id
+
+    def test_overlap_detected(self, initialized_db: DatabaseManager) -> None:
+        """訓練期間とバックテスト期間の重複が検出されること。"""
+        registry = FactorRegistry(initialized_db)
+        self._create_approved_rule(
+            registry, initialized_db, "重複ルール",
+            training_from="2024-01-01", training_to="2024-06-30",
+        )
+        result = registry.check_training_overlap("2024-03-01", "2024-12-31")
+        assert result["has_overlap"] is True
+        assert len(result["overlapping_rules"]) == 1
+        assert result["overlapping_rules"][0]["rule_name"] == "重複ルール"
+
+    def test_no_overlap(self, initialized_db: DatabaseManager) -> None:
+        """重複なしの場合にhas_overlap=Falseになること。"""
+        registry = FactorRegistry(initialized_db)
+        self._create_approved_rule(
+            registry, initialized_db, "安全ルール",
+            training_from="2024-01-01", training_to="2024-06-30",
+        )
+        result = registry.check_training_overlap("2024-07-01", "2024-12-31")
+        assert result["has_overlap"] is False
+        assert len(result["safe_rules"]) == 1
+
+    def test_no_training_info_classified(self, initialized_db: DatabaseManager) -> None:
+        """訓練期間未記録のルールがno_training_infoに分類されること。"""
+        registry = FactorRegistry(initialized_db)
+        self._create_approved_rule(registry, initialized_db, "未記録ルール")
+        result = registry.check_training_overlap("2024-01-01", "2024-12-31")
+        assert len(result["no_training_info"]) == 1
+        assert result["no_training_info"][0]["rule_name"] == "未記録ルール"
