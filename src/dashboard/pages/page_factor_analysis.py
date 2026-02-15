@@ -395,6 +395,7 @@ def _render() -> None:
                 },
             )
             st.session_state.task_importance = task_id
+            st.toast("重要度分析を開始しました — サイドバーで進捗を確認できます", icon="\u23f3")
             st.rerun()
 
         if "importance_result" in st.session_state:
@@ -474,6 +475,7 @@ def _render() -> None:
                 },
             )
             st.session_state.task_optimize = task_id
+            st.toast("Weight最適化を開始しました — サイドバーで進捗を確認できます", icon="\u23f3")
             st.rerun()
 
         if "optimize_result" in st.session_state:
@@ -572,6 +574,7 @@ def _render() -> None:
                 },
             )
             st.session_state.task_calibrator = task_id
+            st.toast("キャリブレーター学習を開始しました — サイドバーで進捗を確認できます", icon="\u23f3")
             st.rerun()
 
         if "calibrator_result" in st.session_state:
@@ -629,6 +632,7 @@ def _render() -> None:
                 },
             )
             st.session_state.task_correlation = task_id
+            st.toast("相関分析を開始しました — サイドバーで進捗を確認できます", icon="\u23f3")
             st.rerun()
 
         if "corr_result" in st.session_state:
@@ -703,6 +707,7 @@ def _render() -> None:
                 },
             )
             st.session_state.task_sensitivity = task_id
+            st.toast("感度分析を開始しました — サイドバーで進捗を確認できます", icon="\u23f3")
             st.rerun()
 
         if "sens_result" in st.session_state:
@@ -774,6 +779,7 @@ def _render() -> None:
                 },
             )
             st.session_state.task_discovery = task_id
+            st.toast("ファクター発見を開始しました — サイドバーで進捗を確認できます", icon="\u23f3")
             st.rerun()
 
         if "disc_result" in st.session_state:

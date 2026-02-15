@@ -4,6 +4,7 @@ config/config.yaml からDB接続パス等を読み込み、
 DatabaseManagerインスタンスを生成する。
 """
 
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -67,7 +68,77 @@ def get_db_managers(
         ext_resolved = FALLBACK_DB_PATH
 
     wal = db_config.get("wal_mode", True)
+
+    ext_db = DatabaseManager(str(ext_resolved), wal_mode=wal)
+    _ensure_ext_schema(ext_resolved)
+
     return (
         DatabaseManager(str(jvlink_resolved), wal_mode=wal),
-        DatabaseManager(str(ext_resolved), wal_mode=wal),
+        ext_db,
     )
+
+
+def _ensure_ext_schema(db_path: Path) -> None:
+    """拡張DBのスキーママイグレーションを実行する。
+
+    既存DBに不足カラム・テーブルがあれば追加する。
+    """
+    if not db_path.exists():
+        return
+    try:
+        conn = sqlite3.connect(str(db_path))
+        # factor_rules テーブルが存在する場合のみマイグレーション
+        tables = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()]
+        if "factor_rules" in tables:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(factor_rules)").fetchall()]
+            if "training_from" not in cols:
+                conn.execute("ALTER TABLE factor_rules ADD COLUMN training_from TEXT")
+            if "training_to" not in cols:
+                conn.execute("ALTER TABLE factor_rules ADD COLUMN training_to TEXT")
+        # バージョン管理テーブル
+        if "rule_set_snapshots" not in tables:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rule_set_snapshots (
+                    snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    version_label TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    trigger TEXT DEFAULT 'manual',
+                    calibrator_path TEXT,
+                    calibrator_method TEXT,
+                    config_json TEXT,
+                    created_at TEXT NOT NULL,
+                    created_by TEXT DEFAULT 'user'
+                )
+            """)
+        if "factor_rules_archive" not in tables:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS factor_rules_archive (
+                    archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    snapshot_id INTEGER,
+                    rule_id INTEGER NOT NULL,
+                    rule_name TEXT NOT NULL,
+                    category TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
+                    sql_expression TEXT DEFAULT '',
+                    weight REAL DEFAULT 1.0,
+                    review_status TEXT DEFAULT 'DRAFT',
+                    is_active INTEGER DEFAULT 0,
+                    validation_score REAL,
+                    decay_rate REAL,
+                    min_sample_size INTEGER DEFAULT 100,
+                    source TEXT DEFAULT 'manual',
+                    training_from TEXT,
+                    training_to TEXT,
+                    archived_at TEXT NOT NULL,
+                    archived_by TEXT DEFAULT 'system',
+                    FOREIGN KEY (rule_id) REFERENCES factor_rules(rule_id),
+                    FOREIGN KEY (snapshot_id) REFERENCES rule_set_snapshots(snapshot_id)
+                )
+            """)
+        conn.commit()
+    except Exception as e:
+        logger.warning(f"拡張DBマイグレーション失敗: {e}")
+    finally:
+        conn.close()
