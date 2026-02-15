@@ -245,14 +245,12 @@ class JVLinkSyncManager:
             logger.warning("data_sync_logテーブルが存在しません")
             return 0
         try:
-            self._ext_db.execute_write(
-                "INSERT INTO data_sync_log (started_at, status) VALUES (?, 'RUNNING')",
-                (started_at,),
-            )
-            rows = self._ext_db.execute_query(
-                "SELECT MAX(sync_id) as last_id FROM data_sync_log"
-            )
-            return rows[0]["last_id"] if rows and rows[0]["last_id"] else 0
+            with self._ext_db.connect() as conn:
+                cursor = conn.execute(
+                    "INSERT INTO data_sync_log (started_at, status) VALUES (?, 'RUNNING')",
+                    (started_at,),
+                )
+                return cursor.lastrowid or 0
         except Exception as e:
             logger.error(f"同期ログ開始エラー: {e}")
             return 0
