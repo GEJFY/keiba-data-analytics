@@ -52,14 +52,13 @@ class AzureProvider(BaseLLMProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        # GPT-5系は max_tokens 非対応、max_completion_tokens を使用
-        body: dict[str, Any] = {
-            "messages": messages,
-            "temperature": temperature,
-        }
-        if model.startswith("gpt-5") or model.startswith("o"):
+        # GPT-5系: max_completion_tokens使用、temperature=1固定
+        is_gpt5 = model.startswith("gpt-5") or model.startswith("o")
+        body: dict[str, Any] = {"messages": messages}
+        if is_gpt5:
             body["max_completion_tokens"] = max_tokens
         else:
+            body["temperature"] = temperature
             body["max_tokens"] = max_tokens
 
         resp = requests.post(url, headers=headers, json=body, timeout=self._timeout)
