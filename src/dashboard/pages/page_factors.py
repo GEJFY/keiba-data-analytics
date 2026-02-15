@@ -155,6 +155,43 @@ else:
         height=300,
     )
 
+    # --- DEPRECATED ルールのクイック復帰 ---
+    deprecated_rules = df_rules[df_rules["review_status"] == "DEPRECATED"]
+    if not deprecated_rules.empty:
+        with st.expander(
+            f"無効化されたファクター ({len(deprecated_rules)}件) "
+            "— クリックして復帰操作",
+            expanded=True,
+        ):
+            st.caption(
+                "誤って無効化したファクターをここからワンクリックで復帰できます。"
+                "「APPROVED に復帰」を押すと DEPRECATED → DRAFT → TESTING → APPROVED を一括実行します。"
+            )
+            for _, dep_rule in deprecated_rules.iterrows():
+                col_name, col_btn = st.columns([3, 1])
+                with col_name:
+                    st.markdown(
+                        f"**[{dep_rule['rule_id']}] {dep_rule['rule_name']}** "
+                        f"(Weight: {dep_rule['weight']}, カテゴリ: {dep_rule['category']})"
+                    )
+                with col_btn:
+                    if st.button(
+                        "APPROVED に復帰",
+                        key=f"restore_{dep_rule['rule_id']}",
+                    ):
+                        rid = dep_rule["rule_id"]
+                        try:
+                            registry.transition_status(rid, "DRAFT", "クイック復帰")
+                            registry.transition_status(rid, "TESTING", "クイック復帰")
+                            registry.transition_status(rid, "APPROVED", "クイック復帰")
+                            st.success(
+                                f"[{rid}] {dep_rule['rule_name']} を "
+                                "APPROVED に復帰しました"
+                            )
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"復帰エラー: {e}")
+
     # ステータス・Weight分布グラフ
     if len(df_display) > 0:
         from src.dashboard.components.charts import histogram_chart, pie_chart

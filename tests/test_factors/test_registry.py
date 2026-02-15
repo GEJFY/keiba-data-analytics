@@ -79,6 +79,30 @@ class TestFactorRegistry:
         assert len(logs) >= 1
         assert logs[0]["action"] == "CREATED"
 
+    def test_transition_deprecated_to_draft(self, initialized_db: DatabaseManager) -> None:
+        """DEPRECATED → DRAFTの復帰遷移が正常に動作すること。"""
+        registry = FactorRegistry(initialized_db)
+        rule_id = registry.create_rule({"rule_name": "復帰テスト", "category": "テスト"})
+        registry.transition_status(rule_id, "TESTING", reason="検証開始")
+        registry.transition_status(rule_id, "APPROVED", reason="承認")
+        registry.transition_status(rule_id, "DEPRECATED", reason="無効化")
+
+        # DEPRECATED → DRAFT への復帰
+        registry.transition_status(rule_id, "DRAFT", reason="再検討のため復帰")
+        rules = registry.get_rules_by_status("DRAFT")
+        assert any(r["rule_id"] == rule_id for r in rules)
+
+    def test_deprecated_to_approved_invalid(self, initialized_db: DatabaseManager) -> None:
+        """DEPRECATED → APPROVEDの直接遷移は不正であること。"""
+        registry = FactorRegistry(initialized_db)
+        rule_id = registry.create_rule({"rule_name": "不正復帰テスト", "category": "テスト"})
+        registry.transition_status(rule_id, "TESTING", reason="検証開始")
+        registry.transition_status(rule_id, "APPROVED", reason="承認")
+        registry.transition_status(rule_id, "DEPRECATED", reason="無効化")
+
+        with pytest.raises(ValueError, match="許可されていません"):
+            registry.transition_status(rule_id, "APPROVED", reason="直接復帰は不可")
+
 
 @pytest.mark.unit
 class TestFactorRegistryAsOfDate:
