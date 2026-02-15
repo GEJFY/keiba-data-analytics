@@ -24,7 +24,14 @@ VALID_TRANSITIONS = {
     "DRAFT": ["TESTING"],
     "TESTING": ["APPROVED", "DRAFT"],
     "APPROVED": ["DEPRECATED"],
-    "DEPRECATED": [],
+    "DEPRECATED": ["DRAFT"],  # 再検討のためDRAFTに戻せる
+}
+
+TRANSITION_HELP = {
+    "DRAFT": "下書き状態。テストに進む前の準備段階です。",
+    "TESTING": "テスト中。バックテストで効果を検証する段階です。",
+    "APPROVED": "承認済み。実際のスコアリングに使用されます。",
+    "DEPRECATED": "無効化済み。スコアリングには使用されません。DRAFTに戻して再検討できます。",
 }
 
 STATUS_COLORS = {
@@ -208,6 +215,27 @@ with tab_create, st.form("create_rule_form"):
 # --- ステータス遷移 ---
 with tab_transition:
     st.subheader("ステータス遷移")
+
+    # ステータスフロー図
+    with st.expander("ステータス遷移フローについて", expanded=False):
+        st.markdown("""
+#### ステータスの流れ
+```
+DRAFT（下書き）→ TESTING（テスト中）→ APPROVED（承認）→ DEPRECATED（無効化）
+                    ↑  ↓                                       ↓
+                    ←──┘（差し戻し）                    DRAFT に戻して再検討可能
+```
+
+| ステータス | 意味 | スコアリングへの影響 |
+|-----------|------|-------------------|
+| **DRAFT** | 新規作成・再検討中 | 使用されない |
+| **TESTING** | テスト検証中 | 使用されない |
+| **APPROVED** | 本番承認済み | **スコアリングに使用される** |
+| **DEPRECATED** | 無効化済み | 使用されない |
+
+**無効化したファクターを元に戻すには**: DEPRECATED → DRAFT に遷移 → 再度 TESTING → APPROVED の流れで復帰できます。
+""")
+
     if df_rules.empty:
         st.info("ルールがありません")
     else:
@@ -220,8 +248,14 @@ with tab_transition:
         current_status = df_rules[df_rules["rule_id"] == selected_id]["review_status"].iloc[0]
         possible = VALID_TRANSITIONS.get(current_status, [])
 
+        # 現在のステータスの説明を表示
+        color = STATUS_COLORS.get(current_status, "")
+        help_text = TRANSITION_HELP.get(current_status, "")
+        st.caption(f"現在: {color} {current_status} — {help_text}")
+
         if possible:
             new_status = st.selectbox("遷移先", possible)
+            st.caption(f"遷移先: {STATUS_COLORS.get(new_status, '')} {TRANSITION_HELP.get(new_status, '')}")
             reason = st.text_input("遷移理由", placeholder="例: バックテスト合格")
             if st.button("遷移実行"):
                 registry.transition_status(selected_id, new_status, reason)

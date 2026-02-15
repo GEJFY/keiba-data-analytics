@@ -19,7 +19,7 @@ _VALID_TRANSITIONS: dict[str, list[str]] = {
     "DRAFT": ["TESTING"],
     "TESTING": ["APPROVED", "DRAFT"],
     "APPROVED": ["DEPRECATED"],
-    "DEPRECATED": [],
+    "DEPRECATED": ["DRAFT"],  # 再検討のためDRAFTに戻せる
 }
 
 # ステータス遷移時のアクションマッピング
