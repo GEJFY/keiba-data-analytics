@@ -322,6 +322,69 @@ class TestRaceDayPipeline:
         assert isinstance(errors, list)
 
 
+    def test_safety_reset_daily_called(self, jvlink_db, ext_db) -> None:
+        """run_full()実行時にSafetyGuard.reset_daily()が呼ばれること。"""
+        config = _make_config("dryrun")
+        pipeline = RaceDayPipeline(jvlink_db, ext_db, config)
+
+        # 事前に投票を登録して日次損失を積む
+        pipeline._safety.register_bet("old_race", "01")
+        pipeline._safety.record_result(is_win=False, pnl=-10000)
+        assert pipeline._safety.check_duplicate_bet("old_race", "01") is True
+        assert pipeline._safety._state.daily_loss == 10000
+
+        # run_full()でリセットされる
+        pipeline.run_full(target_date="20250105")
+        assert pipeline._safety.check_duplicate_bet("old_race", "01") is False
+        assert pipeline._safety._state.daily_loss == 0
+
+    def test_get_jvlink_record_counts(self, jvlink_db, ext_db) -> None:
+        """JVLink DBのレコード数取得が正しいこと。"""
+        config = _make_config("dryrun")
+        pipeline = RaceDayPipeline(jvlink_db, ext_db, config)
+
+        counts = pipeline._get_jvlink_record_counts()
+        assert counts["NL_RA_RACE"] == 1
+        assert counts["NL_SE_RACE_UMA"] == 3
+        assert counts["NL_HR_PAY"] == 1
+
+    def test_get_jvlink_record_counts_missing_tables(self, ext_db, tmp_path) -> None:
+        """テーブルが存在しない場合に0を返すこと。"""
+        empty_db = DatabaseManager(str(tmp_path / "empty.db"), wal_mode=False)
+        config = _make_config("dryrun")
+        pipeline = RaceDayPipeline(empty_db, ext_db, config)
+
+        counts = pipeline._get_jvlink_record_counts()
+        assert counts["NL_RA_RACE"] == 0
+        assert counts["NL_SE_RACE_UMA"] == 0
+        assert counts["NL_HR_PAY"] == 0
+
+    def test_sync_result_recorded_in_db(self, jvlink_db, ext_db) -> None:
+        """sync_resultがpipeline_runsに正しく保存されること。"""
+        config = _make_config("dryrun")
+        config["jvlink"]["exe_path"] = ""
+        pipeline = RaceDayPipeline(jvlink_db, ext_db, config)
+        result = pipeline.run_full(target_date="20250105")
+
+        rows = ext_db.execute_query(
+            "SELECT sync_status, sync_records_added FROM pipeline_runs WHERE run_id = ?",
+            (result.run_id,),
+        )
+        assert len(rows) == 1
+        assert rows[0]["sync_status"] == "SKIPPED"
+        assert rows[0]["sync_records_added"] == 0
+
+    def test_sync_step_nonexistent_exe(self, jvlink_db, ext_db, tmp_path) -> None:
+        """存在しないexeパスでスキップされること。"""
+        config = _make_config("dryrun")
+        config["jvlink"]["exe_path"] = str(tmp_path / "nonexistent.exe")
+        pipeline = RaceDayPipeline(jvlink_db, ext_db, config)
+
+        sync_result = pipeline.step_sync()
+        assert sync_result["status"] == "SKIPPED"
+        assert sync_result["records_added"] == 0
+
+
 class TestPipelineResult:
     """PipelineResultデータクラスのテスト。"""
 

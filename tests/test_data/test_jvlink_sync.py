@@ -128,6 +128,30 @@ class TestJVLinkSyncManager:
         history = mgr.get_sync_history()
         assert history == []
 
+    def test_sync_id_increments_correctly(self, jvlink_db, ext_db) -> None:
+        """複数回の同期でsync_idが正しくインクリメントされること。"""
+        mgr = JVLinkSyncManager(jvlink_db, ext_db, exe_path="")
+        r1 = mgr.run_sync()
+        r2 = mgr.run_sync()
+        r3 = mgr.run_sync()
+        assert r1["sync_id"] < r2["sync_id"] < r3["sync_id"]
+
+    def test_sync_result_has_exit_code(self, jvlink_db, ext_db) -> None:
+        """戻り値にexit_codeキーが含まれること。"""
+        mgr = JVLinkSyncManager(jvlink_db, ext_db, exe_path="")
+        result = mgr.run_sync()
+        assert "exit_code" in result
+        assert result["exit_code"] == -1  # SKIPPED
+
+    def test_sync_result_has_exit_code_on_failure(self, jvlink_db, ext_db, tmp_path) -> None:
+        """FAILED時にもexit_codeが含まれること。"""
+        mgr = JVLinkSyncManager(
+            jvlink_db, ext_db,
+            exe_path=str(tmp_path / "nonexistent.exe"),
+        )
+        result = mgr.run_sync()
+        assert "exit_code" in result
+
     def test_enable_setup_data_default_false(self, jvlink_db, ext_db) -> None:
         """enable_setup_dataのデフォルトがFalseであること。"""
         mgr = JVLinkSyncManager(jvlink_db, ext_db)
