@@ -304,6 +304,7 @@ if bt_result is not None:
     _render_backtest_result(bt_result)
     if st.button("結果をクリア", key="btn_bt_clear"):
         del st.session_state["bt_result"]
+        st.toast("結果をクリアしました", icon="🗑️")
         st.rerun()
 
 bt_default_from, bt_default_to = backtest_defaults()
@@ -373,4 +374,5 @@ with st.form("backtest_form"):
             },
         )
         st.session_state["bt_task_id"] = task_id
+        st.toast("バックテストを開始しました — サイドバーで進捗を確認できます", icon="⏳")
         st.rerun()

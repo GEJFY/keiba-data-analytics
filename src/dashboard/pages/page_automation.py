@@ -220,6 +220,7 @@ if pipeline_result is not None:
 
     if st.button("結果をクリア", key="btn_pipeline_clear"):
         del st.session_state["pipeline_result"]
+        st.toast("結果をクリアしました", icon="🗑️")
         st.rerun()
 
 with st.form("pipeline_manual_form"):
@@ -242,4 +243,5 @@ with st.form("pipeline_manual_form"):
             },
         )
         st.session_state["pipeline_task_id"] = task_id
+        st.toast("パイプライン実行を開始しました — サイドバーで進捗を確認できます", icon="⏳")
         st.rerun()

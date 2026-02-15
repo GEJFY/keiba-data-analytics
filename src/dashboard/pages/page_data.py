@@ -396,6 +396,7 @@ else:
 
             if st.button("結果をクリア", key="btn_sync_clear"):
                 del st.session_state["sync_result"]
+                st.toast("同期結果をクリアしました", icon="🗑️")
                 st.rerun()
 
         btn_label = "同期実行中..." if is_syncing else "JVLink同期を実行"
@@ -411,6 +412,7 @@ else:
                 },
             )
             st.session_state["sync_task_id"] = task_id
+            st.toast("JVLink同期を開始しました — サイドバーで進捗を確認できます", icon="⏳")
             st.rerun()
 
 # --- データ品質チェック ---
@@ -419,9 +421,11 @@ st.subheader("データ品質チェック")
 st.caption("テーブル存在・レコード数・重要カラム欠損・テーブル間整合性を一括チェックします。")
 
 if st.button("品質チェック実行", key="btn_quality"):
-    validator = DataValidator(jvlink_db)
-    result = validator.run_full_check()
-    st.session_state["quality_result"] = result
+    with st.spinner("品質チェックを実行中..."):
+        validator = DataValidator(jvlink_db)
+        result = validator.run_full_check()
+        st.session_state["quality_result"] = result
+    st.toast("品質チェックが完了しました", icon="✅")
 
 quality_result = st.session_state.get("quality_result")
 if quality_result is not None:
@@ -534,6 +538,7 @@ if quality_result is not None:
     # クリアボタン
     if st.button("チェック結果をクリア", key="btn_quality_clear"):
         del st.session_state["quality_result"]
+        st.toast("チェック結果をクリアしました", icon="🗑️")
         st.rerun()
 
 # --- レース一覧 ---
@@ -594,6 +599,7 @@ if tables_to_delete:
                     deleted_total += cnt
                     st.text(f"  {tbl}: {cnt} 件削除")
             st.success(f"合計 {deleted_total:,} 件のデータを削除しました。")
+            st.toast(f"{deleted_total:,} 件のデータを削除しました", icon="🗑️")
             st.rerun()
         else:
             st.error('確認テキストが一致しません。"delete" と入力してください。')
