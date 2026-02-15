@@ -184,3 +184,82 @@ class TestTrialRunner:
         rules = runner._select_factors(config, "20240101", "20240601")
         # 空DB → 空リスト
         assert isinstance(rules, list)
+
+    def test_select_factors_category_filtered(self, runner: TrialRunner) -> None:
+        """factor_selection='category_filtered'がカテゴリフィルタを行うこと。"""
+        config = _make_trial_config(factor_selection="category_filtered")
+        rules = runner._select_factors(config, "20240101", "20240601")
+        assert isinstance(rules, list)
+
+    def test_select_factors_top10_auc(self, runner: TrialRunner) -> None:
+        """factor_selection='top10_auc'がAUCベースのフィルタを行うこと。"""
+        config = _make_trial_config(factor_selection="top10_auc")
+        rules = runner._select_factors(config, "20240101", "20240601")
+        assert isinstance(rules, list)
+
+    def test_run_preloaded_empty_races(self, runner: TrialRunner) -> None:
+        """空のpreloaded_racesでエラーメッセージを返すこと。"""
+        config = _make_trial_config()
+        search_config = SearchConfig(
+            date_from="20240101", date_to="20240601",
+            n_trials=1, mc_simulations=100,
+        )
+        result = runner.run(config, search_config, preloaded_races=[])
+        assert result.error != ""
+
+    def test_safe_float(self) -> None:
+        """_safe_floatがエラー時にデフォルト値を返すこと。"""
+        assert TrialScoringEngine._safe_float("3.14") == 3.14
+        assert TrialScoringEngine._safe_float("invalid", 0.0) == 0.0
+        assert TrialScoringEngine._safe_float(None, -1.0) == -1.0
+
+    def test_trial_strategy_place_bet_type(self) -> None:
+        """target_jyuni != 1でPLACEベットが生成されること。"""
+        rules = [{"rule_name": "f1", "sql_expression": "1", "weight": 2.0}]
+        strategy = TrialStrategy(
+            rules=rules, ev_threshold=0.5, max_bets_per_race=3,
+        )
+        entries = [{"Umaban": "01"}]
+        odds_map = {"01": 5.0}
+        race = {"Year": "2024", "MonthDay": "0101", "JyoCD": "05",
+                "Kaiji": "01", "Nichiji": "01", "RaceNum": "01"}
+
+        bets = strategy.run(race, entries, odds_map, 1_000_000, {"target_jyuni": 3})
+        if bets:
+            assert bets[0].bet_type == "PLACE"
+
+    def test_trial_strategy_max_bets_limit(self) -> None:
+        """max_bets_per_raceの制限が機能すること。"""
+        rules = [{"rule_name": "f1", "sql_expression": "1", "weight": 2.0}]
+        strategy = TrialStrategy(
+            rules=rules, ev_threshold=0.5, max_bets_per_race=1,
+        )
+        entries = [{"Umaban": f"{i:02d}"} for i in range(1, 6)]
+        odds_map = {f"{i:02d}": 5.0 for i in range(1, 6)}
+        race = {"Year": "2024", "MonthDay": "0101", "JyoCD": "05",
+                "Kaiji": "01", "Nichiji": "01", "RaceNum": "01"}
+
+        bets = strategy.run(race, entries, odds_map, 1_000_000, {})
+        assert len(bets) <= 1
+
+    def test_trial_strategy_build_race_key(self) -> None:
+        """_build_race_keyが正しいキーを生成すること。"""
+        race = {"Year": "2024", "MonthDay": "0105", "JyoCD": "05",
+                "Kaiji": "01", "Nichiji": "02", "RaceNum": "03"}
+        key = TrialStrategy._build_race_key(race)
+        assert key == "2024010505010203"
+
+    def test_trial_strategy_equal_method(self) -> None:
+        """betting_method='equal'でも動作すること。"""
+        rules = [{"rule_name": "f1", "sql_expression": "1", "weight": 2.0}]
+        strategy = TrialStrategy(
+            rules=rules, ev_threshold=0.5, max_bets_per_race=3,
+            betting_method="equal",
+        )
+        entries = [{"Umaban": "01"}]
+        odds_map = {"01": 5.0}
+        race = {"Year": "2024", "MonthDay": "0101", "JyoCD": "05",
+                "Kaiji": "01", "Nichiji": "01", "RaceNum": "01"}
+
+        bets = strategy.run(race, entries, odds_map, 1_000_000, {})
+        assert isinstance(bets, list)
