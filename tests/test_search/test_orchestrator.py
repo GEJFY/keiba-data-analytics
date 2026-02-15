@@ -1,7 +1,5 @@
 """ModelSearchOrchestratorのテスト。"""
 
-import sqlite3
-
 import pytest
 
 from src.data.db import DatabaseManager

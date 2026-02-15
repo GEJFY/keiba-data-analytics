@@ -196,7 +196,7 @@ class TestParameterTrends:
             ))
 
         summary = reporter.generate(sid)
-        for param, values in summary.parameter_trends.items():
+        for _param, values in summary.parameter_trends.items():
             if len(values) > 1:
                 for j in range(len(values) - 1):
                     assert values[j]["avg_score"] >= values[j + 1]["avg_score"]
