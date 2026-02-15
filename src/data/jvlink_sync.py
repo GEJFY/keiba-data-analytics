@@ -28,16 +28,20 @@ class JVLinkSyncManager:
         jvlink_db: DatabaseManager,
         ext_db: DatabaseManager,
         exe_path: str = "",
+        enable_setup_data: bool = False,
     ) -> None:
         """
         Args:
             jvlink_db: JVLink DBマネージャ
             ext_db: 拡張DBマネージャ（sync_log記録用）
             exe_path: JVLinkToSQLite.exeのパス（空の場合は手動同期モード）
+            enable_setup_data: Trueの場合SetupData（全履歴一括DL）を有効化。
+                初回セットアップ時のみTrue。通常の差分更新ではFalse。
         """
         self._jvlink_db = jvlink_db
         self._ext_db = ext_db
         self._exe_path = exe_path
+        self._enable_setup_data = enable_setup_data
         self._validator = DataValidator(jvlink_db)
 
     def run_sync(self, timeout_sec: int = 600) -> dict[str, Any]:
@@ -81,8 +85,12 @@ class JVLinkSyncManager:
             if not exe.exists():
                 raise FileNotFoundError(f"実行ファイルが見つかりません: {exe}")
 
-            # setting.xmlのSetupDataを有効化（exeが実行後にfalseに戻すため）
-            self._enable_setup_data(exe.parent / "setting.xml")
+            setting_xml = exe.parent / "setting.xml"
+            if self._enable_setup_data:
+                self._set_setup_data(setting_xml, enabled=True)
+            else:
+                # 通常更新: SetupDataを無効化してダイアログ表示を防止
+                self._set_setup_data(setting_xml, enabled=False)
 
             # exeのディレクトリをcwdに設定（DLL依存解決のため）
             exe_dir = exe.parent
@@ -191,28 +199,30 @@ class JVLinkSyncManager:
             return {"error": str(e)}
 
     @staticmethod
-    def _enable_setup_data(setting_xml: Path) -> None:
-        """setting.xmlのJVSetupDataUpdateSettingを有効化する。
+    def _set_setup_data(setting_xml: Path, *, enabled: bool) -> None:
+        """setting.xmlのJVSetupDataUpdateSetting/IsEnabledを設定する。
 
-        JVLinkToSQLite.exeは実行後にIsEnabledをfalseに戻すため、
-        毎回実行前にtrueに書き換える。
+        enabled=True: 全履歴一括DL（初回セットアップ用）
+        enabled=False: 通常差分更新のみ（セットアップダイアログ非表示）
         """
         if not setting_xml.exists():
             logger.warning(f"setting.xml not found: {setting_xml}")
             return
         try:
             text = setting_xml.read_text(encoding="utf-8")
+            target = "true" if enabled else "false"
+            current = "false" if enabled else "true"
             new_text = re.sub(
-                r"(<JVSetupDataUpdateSetting>\s*<IsEnabled>)false(</IsEnabled>)",
-                r"\1true\2",
+                rf"(<JVSetupDataUpdateSetting>\s*<IsEnabled>){current}(</IsEnabled>)",
+                rf"\1{target}\2",
                 text,
                 count=1,
             )
             if new_text != text:
                 setting_xml.write_text(new_text, encoding="utf-8")
-                logger.info("setting.xml: SetupData enabled (false → true)")
+                logger.info(f"setting.xml: SetupData {current} → {target}")
             else:
-                logger.debug("setting.xml: SetupData already enabled")
+                logger.debug(f"setting.xml: SetupData already {target}")
         except Exception as e:
             logger.warning(f"setting.xml更新エラー（続行します）: {e}")
 

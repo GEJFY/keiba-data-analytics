@@ -353,13 +353,18 @@ def _render() -> None:
             )
 
     # --- タブステップナビゲーション ---
+    # コアワークフロー（1→2→3の順に実行）と診断ツール（任意順）を分離
+    st.caption(
+        "**コアワークフロー** (1→2→3): 順番に実行してください  |  "
+        "**診断ツール**: キャリブレーター学習後に任意の順で実行できます"
+    )
     step_labels = [
-        "Step 1: 重要度分析",
-        "Step 2: Weight最適化",
-        "Step 3: キャリブレーター",
-        "Step 4: 相関分析",
-        "Step 5: 感度分析",
-        "Step 6: ファクター発見",
+        "1. 重要度分析",
+        "2. Weight最適化",
+        "3. キャリブレーター",
+        "相関分析",
+        "感度分析",
+        "ファクター発見",
     ]
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(step_labels)
 
@@ -440,7 +445,7 @@ def _render() -> None:
                 st.rerun()
 
             mark_step_completed("factor")
-            st.success("Step 1 完了 — 「Step 2: Weight最適化」タブに進んでください")
+            st.success("重要度分析 完了 — 「2. Weight最適化」タブに進んでください")
 
     # ================================================================
     # Step 2: Weight最適化
@@ -505,7 +510,7 @@ def _render() -> None:
 
             st.warning(
                 "「DBに反映」を押すと現在のWeightが上書きされます。"
-                "反映後はStep 3のキャリブレーター再学習が必要です。",
+                "反映後は「3. キャリブレーター」タブで再学習が必要です。",
                 icon="\u26a0\ufe0f",
             )
             if st.button("最適化結果をDBに反映", key="btn_apply_weights"):
@@ -526,7 +531,10 @@ def _render() -> None:
                         training_to=result.get("training_to", ""),
                     )
                     mark_step_completed("optimize")
-                    st.success(f"{updated}ルールのWeightを更新しました — Step 3 で再学習してください")
+                    st.success(
+                        f"{updated}ルールのWeightを更新しました"
+                        " — 「3. キャリブレーター」タブで再学習してください"
+                    )
                 except Exception as e:
                     st.error(f"Weight適用エラー: {e}")
 
@@ -593,7 +601,7 @@ def _render() -> None:
                 del st.session_state["calibrator_result"]
                 st.rerun()
 
-            st.success("Step 3 完了 — バックテストタブでROIを確認してください")
+            st.success("キャリブレーター学習 完了 — バックテストページでROIを確認してください")
 
     # ================================================================
     # Step 4: ファクター相関分析

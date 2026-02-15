@@ -160,6 +160,7 @@ def _run_sync_bg(
     ext_db_path: str,
     exe_path: str,
     timeout_sec: int = 600,
+    enable_setup_data: bool = False,
     progress_callback: Any = None,
 ) -> dict:
     """JVLink同期をバックグラウンドで実行する。"""
@@ -177,6 +178,7 @@ def _run_sync_bg(
         jvlink_db=jvlink_db,
         ext_db=ext_db,
         exe_path=exe_path,
+        enable_setup_data=enable_setup_data,
     )
 
     if progress_callback:
