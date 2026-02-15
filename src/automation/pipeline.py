@@ -128,6 +128,10 @@ class RaceDayPipeline:
             self._config.setdefault("betting", {})["method"] = "dryrun"
 
         self._ensure_pipeline_table()
+
+        # 日次安全状態リセット（daily_loss, executed_bets）
+        self._safety.reset_daily()
+
         now = datetime.now(UTC).isoformat()
 
         result = PipelineResult(
@@ -230,6 +234,9 @@ class RaceDayPipeline:
         ))
         db_resolved = str((project_root / db_path).resolve())
 
+        # 同期前のレコード数を取得
+        before_counts = self._get_jvlink_record_counts()
+
         # リトライ付き実行
         last_exit_code = -1
         for attempt in range(1, retry_count + 1):
@@ -244,8 +251,10 @@ class RaceDayPipeline:
                 )
                 last_exit_code = proc.returncode
                 if proc.returncode == 0:
-                    logger.info("JVLink同期成功")
-                    return {"status": "SUCCESS", "exit_code": 0, "records_added": 0}
+                    after_counts = self._get_jvlink_record_counts()
+                    records_added = max(0, sum(after_counts.values()) - sum(before_counts.values()))
+                    logger.info(f"JVLink同期成功: {records_added}件追加")
+                    return {"status": "SUCCESS", "exit_code": 0, "records_added": records_added}
                 logger.warning(
                     f"JVLink同期失敗 (exit={proc.returncode}): {proc.stderr[:500]}"
                 )
@@ -257,6 +266,19 @@ class RaceDayPipeline:
                 last_exit_code = -3
 
         return {"status": "FAILED", "exit_code": last_exit_code, "records_added": 0}
+
+    def _get_jvlink_record_counts(self) -> dict[str, int]:
+        """JVLink DBの主要テーブルのレコード数を取得する。"""
+        counts: dict[str, int] = {}
+        for table in ["NL_RA_RACE", "NL_SE_RACE_UMA", "NL_HR_PAY"]:
+            if self._jvlink_db.table_exists(table):
+                rows = self._jvlink_db.execute_query(
+                    f"SELECT COUNT(*) as cnt FROM [{table}]"
+                )
+                counts[table] = rows[0]["cnt"] if rows else 0
+            else:
+                counts[table] = 0
+        return counts
 
     def step_score_and_bet(self, target_date: str) -> dict[str, Any]:
         """当日全レースをスコアリングし投票する。

@@ -22,7 +22,7 @@ def _load_pipeline_runs(ext_db: DatabaseManager) -> pd.DataFrame:
     if not ext_db.table_exists("pipeline_runs"):
         return pd.DataFrame()
     rows = ext_db.execute_query(
-        "SELECT run_id, run_date, status, sync_status, "
+        "SELECT run_id, run_date, status, sync_status, sync_records_added, "
         "races_found, races_scored, total_bets, total_stake, "
         "reconciled, errors, started_at, completed_at "
         "FROM pipeline_runs ORDER BY run_id DESC LIMIT 50"
@@ -113,12 +113,13 @@ if latest:
     }
     status_label = status_map.get(latest.get("status", ""), latest.get("status", ""))
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("実行日", latest.get("run_date", "—"))
     c2.metric("ステータス", status_label)
-    c3.metric("投票数", latest.get("total_bets", 0))
-    c4.metric("合計投票額", f"{latest.get('total_stake', 0):,}円")
-    c5.metric("照合数", latest.get("reconciled", 0))
+    c3.metric("同期件数", latest.get("sync_records_added", 0))
+    c4.metric("スコア済", f"{latest.get('races_scored', 0)}/{latest.get('races_found', 0)}R")
+    c5.metric("投票数", f"{latest.get('total_bets', 0)}件 / {latest.get('total_stake', 0):,}円")
+    c6.metric("照合数", latest.get("reconciled", 0))
 else:
     st.info(
         "パイプライン実行履歴がありません。\n\n"
@@ -151,14 +152,17 @@ else:
 
     st.dataframe(
         df_display[["run_id", "run_date", "status", "sync_status",
-                     "races_found", "total_bets", "total_stake",
+                     "sync_records_added", "races_found", "races_scored",
+                     "total_bets", "total_stake",
                      "reconciled", "error_count", "started_at"]],
         column_config={
             "run_id": "ID",
             "run_date": "実行日",
             "status": "ステータス",
             "sync_status": "同期",
+            "sync_records_added": "同期件数",
             "races_found": "レース数",
+            "races_scored": "スコア済",
             "total_bets": "投票数",
             "total_stake": "投票額",
             "reconciled": "照合数",
