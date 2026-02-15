@@ -68,6 +68,7 @@ class JVLinkSyncManager:
             return {
                 "sync_id": sync_id,
                 "status": "SKIPPED",
+                "exit_code": -1,
                 "records_added": 0,
                 "error_message": "exe_path未設定（手動同期モード）",
                 "validation": validation,
@@ -163,6 +164,7 @@ class JVLinkSyncManager:
         return {
             "sync_id": sync_id,
             "status": status,
+            "exit_code": exit_code,
             "records_added": records_added,
             "error_message": error_msg,
             "stdout": stdout_text,
