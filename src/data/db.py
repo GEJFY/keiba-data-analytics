@@ -47,7 +47,10 @@ class DatabaseManager:
         conn = sqlite3.connect(str(self._db_path))
         conn.row_factory = sqlite3.Row
         if self._wal_mode:
-            conn.execute("PRAGMA journal_mode=WAL")
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.OperationalError:
+                logger.warning(f"WALモード設定失敗（OneDrive同期競合の可能性）: {self._db_path}")
         self._persistent_conn = conn
         try:
             yield conn
@@ -77,7 +80,10 @@ class DatabaseManager:
         conn = sqlite3.connect(str(self._db_path))
         conn.row_factory = sqlite3.Row
         if self._wal_mode:
-            conn.execute("PRAGMA journal_mode=WAL")
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.OperationalError:
+                logger.warning(f"WALモード設定失敗（OneDrive同期競合の可能性）: {self._db_path}")
         try:
             yield conn
             conn.commit()
