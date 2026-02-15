@@ -1,5 +1,7 @@
 """JVLink同期マネージャのテスト。"""
 
+from pathlib import Path
+
 import pytest
 
 from src.data.db import DatabaseManager
@@ -125,3 +127,74 @@ class TestJVLinkSyncManager:
         assert result["sync_id"] == 0
         history = mgr.get_sync_history()
         assert history == []
+
+    def test_enable_setup_data_default_false(self, jvlink_db, ext_db) -> None:
+        """enable_setup_dataのデフォルトがFalseであること。"""
+        mgr = JVLinkSyncManager(jvlink_db, ext_db)
+        assert mgr._enable_setup_data is False
+
+    def test_enable_setup_data_explicit_true(self, jvlink_db, ext_db) -> None:
+        """enable_setup_data=Trueが設定されること。"""
+        mgr = JVLinkSyncManager(jvlink_db, ext_db, enable_setup_data=True)
+        assert mgr._enable_setup_data is True
+
+
+class TestSetSetupData:
+    """_set_setup_dataメソッドのテスト。"""
+
+    _SETTING_XML_TEMPLATE = """\
+<?xml version="1.0" encoding="utf-8"?>
+<JVLinkToSQLiteSetting>
+  <JVSetupDataUpdateSetting>
+    <IsEnabled>{value}</IsEnabled>
+  </JVSetupDataUpdateSetting>
+</JVLinkToSQLiteSetting>"""
+
+    def _write_setting(self, path: Path, enabled: bool) -> None:
+        value = "true" if enabled else "false"
+        path.write_text(self._SETTING_XML_TEMPLATE.format(value=value), encoding="utf-8")
+
+    def test_enable_setup_data(self, tmp_path) -> None:
+        """false → trueに変更されること。"""
+        xml = tmp_path / "setting.xml"
+        self._write_setting(xml, enabled=False)
+
+        JVLinkSyncManager._set_setup_data(xml, enabled=True)
+
+        text = xml.read_text(encoding="utf-8")
+        assert "<IsEnabled>true</IsEnabled>" in text
+
+    def test_disable_setup_data(self, tmp_path) -> None:
+        """true → falseに変更されること。"""
+        xml = tmp_path / "setting.xml"
+        self._write_setting(xml, enabled=True)
+
+        JVLinkSyncManager._set_setup_data(xml, enabled=False)
+
+        text = xml.read_text(encoding="utf-8")
+        assert "<IsEnabled>false</IsEnabled>" in text
+
+    def test_already_enabled_no_change(self, tmp_path) -> None:
+        """既にtrueの場合は変更なしで正常終了すること。"""
+        xml = tmp_path / "setting.xml"
+        self._write_setting(xml, enabled=True)
+        original = xml.read_text(encoding="utf-8")
+
+        JVLinkSyncManager._set_setup_data(xml, enabled=True)
+
+        assert xml.read_text(encoding="utf-8") == original
+
+    def test_already_disabled_no_change(self, tmp_path) -> None:
+        """既にfalseの場合は変更なしで正常終了すること。"""
+        xml = tmp_path / "setting.xml"
+        self._write_setting(xml, enabled=False)
+        original = xml.read_text(encoding="utf-8")
+
+        JVLinkSyncManager._set_setup_data(xml, enabled=False)
+
+        assert xml.read_text(encoding="utf-8") == original
+
+    def test_missing_file_no_error(self, tmp_path) -> None:
+        """ファイルが存在しない場合エラーにならないこと。"""
+        xml = tmp_path / "nonexistent.xml"
+        JVLinkSyncManager._set_setup_data(xml, enabled=True)  # エラーなし
