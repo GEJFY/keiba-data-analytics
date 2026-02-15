@@ -20,7 +20,7 @@ class VertexProvider(BaseLLMProvider):
         return "vertex"
 
     def is_available(self) -> bool:
-        return bool(self._project_id)
+        return bool(self._project_id) and not self._project_id.startswith("your-")
 
     async def generate(
         self,

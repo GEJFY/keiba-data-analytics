@@ -3,19 +3,24 @@
 import os
 from typing import Any
 
+import requests
 from loguru import logger
 
 from src.llm_gateway.gateway import BaseLLMProvider, LLMResponse
 
 
 class AzureProvider(BaseLLMProvider):
-    """Azure AI Foundry経由のLLMプロバイダー。"""
+    """Azure AI Foundry経由のLLMプロバイダー。
+
+    REST APIを直接使用し、openai SDKへの依存を排除。
+    """
 
     def __init__(self, config: dict[str, Any]) -> None:
         self._config = config
         self._endpoint = config.get("endpoint", os.environ.get("AZURE_OPENAI_ENDPOINT", ""))
         self._api_key = os.environ.get("AZURE_OPENAI_API_KEY", "")
         self._api_version = config.get("api_version", "2024-12-01-preview")
+        self._timeout = config.get("timeout", 60)
 
     def name(self) -> str:
         return "azure"
@@ -31,31 +36,41 @@ class AzureProvider(BaseLLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """Azure AI Foundry経由でテキスト生成を実行する。"""
-        from openai import AsyncAzureOpenAI
-
-        client = AsyncAzureOpenAI(
-            azure_endpoint=self._endpoint,
-            api_key=self._api_key,
-            api_version=self._api_version,
+        """Azure AI Foundry REST API経由でテキスト生成を実行する。"""
+        endpoint = self._endpoint.rstrip("/")
+        url = (
+            f"{endpoint}/openai/deployments/{model}"
+            f"/chat/completions?api-version={self._api_version}"
         )
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": self._api_key,
+        }
 
         messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        # GPT-5系は max_tokens 非対応、max_completion_tokens を使用
+        body: dict[str, Any] = {
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if model.startswith("gpt-5") or model.startswith("o"):
+            body["max_completion_tokens"] = max_tokens
+        else:
+            body["max_tokens"] = max_tokens
 
-        content = response.choices[0].message.content or ""
+        resp = requests.post(url, headers=headers, json=body, timeout=self._timeout)
+        resp.raise_for_status()
+        data = resp.json()
+
+        content = data["choices"][0]["message"]["content"]
+        usage_data = data.get("usage", {})
         usage = {
-            "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-            "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+            "prompt_tokens": usage_data.get("prompt_tokens", 0),
+            "completion_tokens": usage_data.get("completion_tokens", 0),
         }
 
         logger.debug(f"Azure応答: model={model}, tokens={usage}")
@@ -65,5 +80,5 @@ class AzureProvider(BaseLLMProvider):
             model=model,
             provider="azure",
             usage=usage,
-            raw_response=response,
+            raw_response=data,
         )
