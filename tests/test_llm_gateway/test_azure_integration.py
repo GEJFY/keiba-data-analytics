@@ -25,15 +25,18 @@ llm_gateway:
     endpoint: "https://test-resource.openai.azure.com/"
     api_version: "2024-12-01-preview"
     models:
+      gpt51_chat: "gpt-51-chat"
+      gpt5_mini: "gpt-5-mini"
+      gpt5_nano: "gpt-5-nano"
       gpt4o: "gpt-4o"
       gpt4o_mini: "gpt-4o-mini"
   model_routing:
     race_analysis:
-      primary: "azure/gpt4o"
-      fallback: "azure/gpt4o_mini"
+      primary: "azure/gpt51_chat"
+      fallback: "azure/gpt5_mini"
     factor_generation:
-      primary: "azure/gpt4o"
-      fallback: "azure/gpt4o_mini"
+      primary: "azure/gpt51_chat"
+      fallback: "azure/gpt5_mini"
 """
     config_path = tmp_path / "config.yaml"
     config_path.write_text(config_content, encoding="utf-8")
