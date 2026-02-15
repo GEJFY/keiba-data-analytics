@@ -25,8 +25,17 @@ if not exist "%VENV_PYTHON%" (
 REM ログディレクトリ確保
 if not exist "logs" mkdir "logs"
 
-echo [%date% %time%] Pipeline started >> logs\pipeline.log
+REM 日付付きログファイル（ローテーション）
+set "LOG_FILE=logs\pipeline_%date:~0,4%%date:~5,2%%date:~8,2%.log"
 
-"%VENV_PYTHON%" scripts\run_pipeline.py --full %* >> logs\pipeline.log 2>&1
+echo [%date% %time%] Pipeline started >> "%LOG_FILE%"
 
-echo [%date% %time%] Pipeline finished (exit=%ERRORLEVEL%) >> logs\pipeline.log
+"%VENV_PYTHON%" scripts\run_pipeline.py --full %* >> "%LOG_FILE%" 2>&1
+set "EXIT_CODE=%ERRORLEVEL%"
+
+echo [%date% %time%] Pipeline finished (exit=%EXIT_CODE%) >> "%LOG_FILE%"
+
+REM 古いログを削除（30日超）
+forfiles /p logs /m "pipeline_*.log" /d -30 /c "cmd /c del @path" >nul 2>&1
+
+exit /b %EXIT_CODE%

@@ -393,15 +393,13 @@ class RaceDayPipeline:
 
     def _create_run_record(self, target_date: str, started_at: str) -> int:
         """実行記録を作成しrun_idを返す。"""
-        self._ext_db.execute_write(
-            """INSERT INTO pipeline_runs (run_date, status, started_at)
-               VALUES (?, 'RUNNING', ?)""",
-            (target_date, started_at),
-        )
-        rows = self._ext_db.execute_query(
-            "SELECT MAX(run_id) AS run_id FROM pipeline_runs"
-        )
-        return rows[0]["run_id"] if rows else 0
+        with self._ext_db.connect() as conn:
+            cursor = conn.execute(
+                """INSERT INTO pipeline_runs (run_date, status, started_at)
+                   VALUES (?, 'RUNNING', ?)""",
+                (target_date, started_at),
+            )
+            return cursor.lastrowid or 0
 
     def _update_run_record(self, run_id: int, result: PipelineResult) -> None:
         """実行記録を更新する。"""
