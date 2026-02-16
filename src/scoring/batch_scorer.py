@@ -60,6 +60,8 @@ class BatchScorer:
                 "scores": NDArray (N_horses,) — total_score (BASE+加重合計)
                 "odds": NDArray (N_horses,) — 単勝オッズ
                 "jyuni": NDArray (N_horses,) — 確定着順
+                "track_types": NDArray (N_horses,) — トラック種別 ("turf"/"dirt")
+                "distances": NDArray (N_horses,) — 距離（メートル）
             }
 
         Raises:
@@ -103,6 +105,8 @@ class BatchScorer:
         all_scores: list[float] = []
         all_odds: list[float] = []
         all_jyuni: list[int] = []
+        all_track_types: list[str] = []
+        all_distances: list[int] = []
 
         races_with_odds = 0
         races_without_odds = 0
@@ -166,6 +170,13 @@ class BatchScorer:
                 all_odds.append(horse_odds)
                 all_jyuni.append(jyuni)
 
+                # 層別キャリブレーション用: トラック種別と距離
+                track_cd = str(race_info.get("TrackCD", ""))
+                track_type = "dirt" if track_cd.startswith("2") else "turf"
+                distance = self._safe_int(race_info.get("Kyori", 0))
+                all_track_types.append(track_type)
+                all_distances.append(distance)
+
             # レース処理後: 全馬のキャッシュを更新
             for horse in entries:
                 ketto = str(horse.get("KettoNum", ""))
@@ -209,6 +220,8 @@ class BatchScorer:
             "scores": np.array(all_scores, dtype=np.float64),
             "odds": np.array(all_odds, dtype=np.float64),
             "jyuni": np.array(all_jyuni, dtype=np.int64),
+            "track_types": np.array(all_track_types),
+            "distances": np.array(all_distances, dtype=np.int64),
         }
 
     def _get_race_list(

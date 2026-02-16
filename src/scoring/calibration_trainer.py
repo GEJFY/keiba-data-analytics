@@ -230,6 +230,68 @@ class CalibrationTrainer:
 
         return calibrator
 
+    def train_stratified(
+        self,
+        date_from: str = "",
+        date_to: str = "",
+        max_races: int = 5000,
+        target_jyuni: int = 1,
+        base_method: str = "platt",
+        progress_callback: Any = None,
+    ) -> "ProbabilityCalibrator":
+        """層別キャリブレーターを学習する。
+
+        トラック種別（芝/ダート）× 距離カテゴリごとに
+        個別のキャリブレーターを学習する。
+
+        Args:
+            date_from: 開始日 "YYYYMMDD"
+            date_to: 終了日 "YYYYMMDD"
+            max_races: 最大レース数
+            target_jyuni: 的中着順閾値
+            base_method: "platt" or "isotonic"
+            progress_callback: 進捗コールバック
+
+        Returns:
+            訓練済みStratifiedCalibrator
+        """
+        import time as _time
+
+        from src.scoring.stratified_calibrator import StratifiedCalibrator
+
+        t_start = _time.perf_counter()
+
+        if progress_callback:
+            progress_callback(0, 3, "訓練データを構築中...")
+
+        from src.scoring.batch_scorer import BatchScorer
+
+        batch = BatchScorer(self._jvlink_db, self._ext_db)
+        matrix = batch.build_factor_matrix(date_from, date_to, max_races)
+
+        scores = matrix["scores"]
+        jyuni = matrix["jyuni"]
+        labels = (jyuni <= target_jyuni).astype(np.int64)
+        track_types = matrix["track_types"]
+        distances = matrix["distances"]
+
+        if progress_callback:
+            progress_callback(1, 3, "層別キャリブレーター学習中...")
+
+        calibrator = StratifiedCalibrator(base_method=base_method)
+        calibrator.fit(scores, labels, track_types, distances)
+
+        if progress_callback:
+            progress_callback(2, 3, "学習完了")
+
+        elapsed = _time.perf_counter() - t_start
+        logger.info(
+            f"層別キャリブレーション訓練完了: "
+            f"method={base_method}, elapsed={elapsed:.2f}s"
+        )
+
+        return calibrator
+
     def evaluate_calibration(
         self,
         calibrator: ProbabilityCalibrator,
