@@ -41,7 +41,7 @@ class WalkForwardWindow:
         """過学習度合い。train_roi / test_roi が大きいほど過学習。"""
         if self.test_roi == 0:
             return float('inf') if self.train_roi > 0 else 0.0
-        return self.train_roi / self.test_roi if self.test_roi != 0 else 0.0
+        return self.train_roi / self.test_roi
 
 
 @dataclass
