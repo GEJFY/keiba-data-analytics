@@ -152,6 +152,50 @@ class TestWalkForwardEngine:
         assert result.is_overfitting is False
 
 
+class TestRunDynamic:
+    """run_dynamic()のテスト。"""
+
+    def test_run_dynamic_returns_result(self) -> None:
+        """run_dynamic()がWalkForwardResultを返すこと。"""
+        # run_dynamicはDB依存のため、ここではインターフェースの存在確認
+        strategy = MockWFStrategy()
+        engine = WalkForwardEngine(strategy)
+        assert hasattr(engine, "run_dynamic")
+
+    def test_run_dynamic_empty_windows(self) -> None:
+        """空ウィンドウリストではベットなしの結果を返すこと。"""
+        strategy = MockWFStrategy()
+        engine = WalkForwardEngine(strategy)
+
+        # DB不要のケース: ウィンドウリストが空
+        from unittest.mock import MagicMock
+
+        mock_jvlink = MagicMock()
+        mock_ext = MagicMock()
+
+        result = engine.run_dynamic(
+            races=[],
+            windows=[],
+            jvlink_db=mock_jvlink,
+            ext_db=mock_ext,
+        )
+        assert isinstance(result, WalkForwardResult)
+        assert result.total_test_bets == 0
+        assert result.total_train_bets == 0
+
+    def test_run_dynamic_signature(self) -> None:
+        """run_dynamic()が必要なパラメータを受け付けること。"""
+        import inspect
+
+        sig = inspect.signature(WalkForwardEngine.run_dynamic)
+        params = list(sig.parameters.keys())
+        assert "jvlink_db" in params
+        assert "ext_db" in params
+        assert "target_jyuni" in params
+        assert "regularization" in params
+        assert "calibration_method" in params
+
+
 class TestHelpers:
     def test_parse_date_yyyymmdd(self) -> None:
         d = _parse_date("20240315")

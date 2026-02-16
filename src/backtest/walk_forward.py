@@ -232,6 +232,183 @@ class WalkForwardEngine:
         return result
 
 
+    def run_dynamic(
+        self,
+        races: list[dict[str, Any]],
+        windows: list[WalkForwardWindow],
+        jvlink_db: Any,
+        ext_db: Any,
+        initial_bankroll: int = 1_000_000,
+        target_jyuni: int = 1,
+        regularization: float = 1.0,
+        ev_threshold: float = 1.05,
+        betting_method: str = "quarter_kelly",
+        max_bets_per_race: int = 3,
+        calibration_method: str = "platt",
+    ) -> WalkForwardResult:
+        """動的Walk-Forward: 各ウィンドウでWeight再最適化する。
+
+        通常の run() が固定Weightを使うのに対し、
+        各ウィンドウのtrain期間でWeight最適化+キャリブレーション学習を行い、
+        test期間でその最適化済みモデルを評価する。
+
+        Args:
+            races: 全レースデータ
+            windows: Walk-Forwardウィンドウリスト
+            jvlink_db: JVLink DBマネージャ
+            ext_db: 拡張DBマネージャ
+            initial_bankroll: 初期資金
+            target_jyuni: 的中着順
+            regularization: L2正則化の強さ
+            ev_threshold: EV閾値
+            betting_method: ベット方式
+            max_bets_per_race: レース当たり最大ベット数
+            calibration_method: キャリブレーション方式
+
+        Returns:
+            WalkForwardResult
+        """
+        from src.data.provider import JVLinkDataProvider
+        from src.scoring.weight_optimizer import WeightOptimizer
+
+        provider = JVLinkDataProvider(jvlink_db)
+        optimizer = WeightOptimizer(jvlink_db, ext_db)
+
+        all_test_bets = []
+
+        for window in windows:
+            logger.info(
+                f"Dynamic Window {window.window_id}: "
+                f"train={window.train_from}~{window.train_to}, "
+                f"test={window.test_from}~{window.test_to}"
+            )
+
+            train_races = _filter_races(races, window.train_from, window.train_to)
+            test_races = _filter_races(races, window.test_from, window.test_to)
+
+            if not train_races or not test_races:
+                logger.info(f"  Window {window.window_id}: データ不足でスキップ")
+                continue
+
+            # 1. Train期間でWeight最適化
+            try:
+                opt_result = optimizer.optimize(
+                    date_from=window.train_from.replace("-", ""),
+                    date_to=window.train_to.replace("-", ""),
+                    max_races=2000,
+                    target_jyuni=target_jyuni,
+                    regularization=regularization,
+                )
+                optimized_weights = opt_result["weights"]
+            except (ValueError, Exception) as e:
+                logger.warning(f"  Window {window.window_id}: Weight最適化失敗 ({e})")
+                continue
+
+            # 2. Train期間でキャリブレーター学習
+            from src.scoring.calibration_trainer import CalibrationTrainer
+
+            cal_trainer = CalibrationTrainer(jvlink_db, ext_db)
+            try:
+                calibrator = cal_trainer.train(
+                    method=calibration_method,
+                    target_jyuni=target_jyuni,
+                    use_batch=True,
+                    date_from=window.train_from.replace("-", ""),
+                    date_to=window.train_to.replace("-", ""),
+                    max_races=2000,
+                )
+            except (ValueError, Exception) as e:
+                logger.warning(f"  Window {window.window_id}: キャリブレーション失敗 ({e})")
+                calibrator = None
+
+            # 3. 最適化済みルールを構築
+            from src.factors.registry import FactorRegistry
+
+            registry = FactorRegistry(ext_db)
+            rules = registry.get_active_rules()
+            optimized_rules = []
+            for rule in rules:
+                r = dict(rule)
+                name = r["rule_name"]
+                if name in optimized_weights:
+                    r["weight"] = optimized_weights[name]
+                optimized_rules.append(r)
+
+            # 4. TrialStrategy構築 → train/testバックテスト
+            from src.search.trial_runner import TrialStrategy
+
+            strategy = TrialStrategy(
+                optimized_rules, calibrator,
+                ev_threshold=ev_threshold,
+                max_bets_per_race=max_bets_per_race,
+                betting_method=betting_method,
+                jvlink_provider=provider,
+            )
+
+            # Train期間バックテスト
+            train_engine = BacktestEngine(strategy)
+            train_config = BacktestConfig(
+                date_from=window.train_from,
+                date_to=window.train_to,
+                initial_bankroll=initial_bankroll,
+            )
+            window.train_result = train_engine.run(train_races, train_config)
+
+            # Test期間バックテスト
+            test_engine = BacktestEngine(strategy)
+            test_config = BacktestConfig(
+                date_from=window.test_from,
+                date_to=window.test_to,
+                initial_bankroll=initial_bankroll,
+            )
+            window.test_result = test_engine.run(test_races, test_config)
+            all_test_bets.extend(window.test_result.bets)
+
+            logger.info(
+                f"  train: {window.train_result.total_bets}bets, "
+                f"ROI={window.train_roi:+.1%} | "
+                f"test: {window.test_result.total_bets}bets, "
+                f"ROI={window.test_roi:+.1%} | "
+                f"weights_optimized={len(optimized_weights)}"
+            )
+
+        # 集計
+        train_rois = [w.train_roi for w in windows if w.train_result]
+        test_rois = [w.test_roi for w in windows if w.test_result]
+        of_ratios = [
+            w.overfitting_ratio for w in windows
+            if w.train_result and w.test_result and w.overfitting_ratio != float('inf')
+        ]
+
+        avg_train = sum(train_rois) / len(train_rois) if train_rois else 0.0
+        avg_test = sum(test_rois) / len(test_rois) if test_rois else 0.0
+        avg_of = sum(of_ratios) / len(of_ratios) if of_ratios else 0.0
+
+        aggregate = calculate_metrics(all_test_bets, initial_bankroll) if all_test_bets else None
+
+        result = WalkForwardResult(
+            windows=windows,
+            aggregate_metrics=aggregate,
+            avg_train_roi=avg_train,
+            avg_test_roi=avg_test,
+            avg_overfitting_ratio=avg_of,
+            total_train_bets=sum(
+                w.train_result.total_bets for w in windows if w.train_result
+            ),
+            total_test_bets=sum(
+                w.test_result.total_bets for w in windows if w.test_result
+            ),
+        )
+
+        logger.info(
+            f"Dynamic Walk-Forward完了: {len(windows)}ウィンドウ, "
+            f"avg_train_ROI={avg_train:+.1%}, avg_test_ROI={avg_test:+.1%}, "
+            f"overfitting_ratio={avg_of:.2f}"
+        )
+
+        return result
+
+
 def _parse_date(date_str: str):
     """YYYYMMDD or YYYY-MM-DD → date"""
     from datetime import date
