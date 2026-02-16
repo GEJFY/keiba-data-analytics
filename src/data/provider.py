@@ -503,7 +503,8 @@ class JVLinkDataProvider:
                 entry_rows = fut_entries.result()
                 odds_rows = fut_odds.result()
                 pay_rows = fut_payouts.result()
-            except Exception:
+            except Exception as e:
+                logger.error(f"バッチクエリ並列取得エラー: {e}")
                 # 全スレッド完了を待ってからre-raise（リソースリーク防止）
                 for f in [fut_entries, fut_odds, fut_payouts]:
                     with contextlib.suppress(Exception):

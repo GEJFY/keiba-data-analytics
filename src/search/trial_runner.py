@@ -24,6 +24,7 @@ from src.scoring.calibration import (
     PlattCalibrator,
     ProbabilityCalibrator,
 )
+from src.scoring.engine import ScoringEngine
 from src.scoring.evaluator import evaluate_rule
 from src.search.config import (
     SearchConfig,
@@ -40,7 +41,7 @@ class TrialScoringEngine:
     ScoringEngineと同じロジックだが、DBではなくインメモリのルール・校正器を使用する。
     """
 
-    BASE_SCORE = 100
+    BASE_SCORE = ScoringEngine.BASE_SCORE
 
     def __init__(
         self,
@@ -543,7 +544,7 @@ class TrialRunner:
         y = (jyuni <= config.target_jyuni).astype(np.int64)
 
         rule_weight_map = {r["rule_name"]: r.get("weight", 1.0) for r in rules}
-        scores = np.full(len(y), 100.0)
+        scores = np.full(len(y), float(ScoringEngine.BASE_SCORE))
         for i, name in enumerate(factor_names):
             w = rule_weight_map.get(name, 0.0)
             scores += X[:, i] * w

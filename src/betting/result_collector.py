@@ -45,6 +45,8 @@ class ResultCollector:
         kakutei = {}
         for e in entries:
             umaban = e.get("Umaban", "")
+            if not umaban or not umaban.strip():
+                continue
             jyuni = e.get("KakuteiJyuni", "0")
             kakutei[umaban] = int(jyuni) if jyuni and jyuni != "0" else 0
 

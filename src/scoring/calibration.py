@@ -85,6 +85,8 @@ class PlattCalibrator(ProbabilityCalibrator):
         if not self._is_fitted:
             raise RuntimeError("校正モデルが未訓練です。fit()を先に呼び出してください。")
         logit = self._a * score + self._b
+        # 極端なlogit値でのexp overflow/underflowを防止
+        logit = float(np.clip(logit, -500, 500))
         return float(1.0 / (1.0 + np.exp(-logit)))
 
 

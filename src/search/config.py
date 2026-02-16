@@ -162,8 +162,9 @@ def calculate_composite_score(result: TrialResult) -> float:
     dd_pct = min(0.30, max(0.0, result.max_drawdown))
     score += 15.0 * (1.0 - dd_pct / 0.30)
 
-    # 過学習抑制: ratio=1.0→15点, ratio=3.0→0点
-    of_ratio = max(1.0, min(3.0, result.wf_overfitting_ratio))
+    # 過学習抑制: ratio=1.0→15点, ratio=3.0→0点, inf→0点
+    raw_of = result.wf_overfitting_ratio
+    of_ratio = max(1.0, min(3.0, raw_of)) if raw_of != float("inf") else 3.0
     score += 15.0 * (1.0 - (of_ratio - 1.0) / 2.0)
 
     # Monte Carlo安定性: ruin=0%→10点, ruin=10%→0点
