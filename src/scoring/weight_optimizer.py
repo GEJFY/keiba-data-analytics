@@ -105,6 +105,12 @@ class WeightOptimizer:
         if progress_callback:
             progress_callback(1, 3, "LogisticRegression学習中...")
 
+        # 特徴量スケーリング（各ファクターのスケール差を補正）
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
         # LogisticRegression
         model = LogisticRegression(
             C=regularization,
@@ -114,13 +120,13 @@ class WeightOptimizer:
         )
         logger.info(
             f"  モデルパラメータ: C={regularization}, solver=lbfgs, "
-            f"max_iter=1000, class_weight=balanced"
+            f"max_iter=1000, class_weight=balanced, StandardScaler=True"
         )
-        model.fit(X, y)
+        model.fit(X_scaled, y)
 
         # 予測
-        y_pred = model.predict(X)
-        y_prob = model.predict_proba(X)[:, 1]
+        y_pred = model.predict(X_scaled)
+        y_prob = model.predict_proba(X_scaled)[:, 1]
         acc = float(accuracy_score(y, y_pred))
         ll = float(log_loss(y, y_prob))
 
@@ -157,6 +163,133 @@ class WeightOptimizer:
             "log_loss": ll,
             "n_samples": len(y),
             "n_positive": n_positive,
+            "feature_coefs": raw_coefs,
+            "training_from": date_from,
+            "training_to": date_to,
+        }
+
+    def optimize_with_cv(
+        self,
+        date_from: str = "",
+        date_to: str = "",
+        max_races: int = 5000,
+        target_jyuni: int = 1,
+        regularization: float = 1.0,
+        n_folds: int = 5,
+        progress_callback: Any = None,
+    ) -> dict[str, Any]:
+        """交差検証付きWeight最適化。OOF精度で過学習を検出する。
+
+        Args:
+            date_from: 訓練データ開始日 "YYYYMMDD"
+            date_to: 訓練データ終了日 "YYYYMMDD"
+            max_races: 最大レース数
+            target_jyuni: 的中とみなす着順
+            regularization: L2正則化の強さ
+            n_folds: 交差検証の分割数
+            progress_callback: 進捗コールバック
+
+        Returns:
+            optimize()の戻り値 + oof_accuracy, oof_log_loss, overfitting_gap
+        """
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.metrics import accuracy_score, log_loss
+        from sklearn.model_selection import StratifiedKFold
+        from sklearn.preprocessing import StandardScaler
+
+        t_start = time.perf_counter()
+
+        if progress_callback:
+            progress_callback(0, 4, "ファクター行列を構築中...")
+        matrix = self._batch_scorer.build_factor_matrix(
+            date_from, date_to, max_races, progress_callback=progress_callback
+        )
+
+        X = matrix["X"]
+        jyuni = matrix["jyuni"]
+        factor_names = matrix["factor_names"]
+        y = (jyuni <= target_jyuni).astype(np.int64)
+
+        n_positive = int(y.sum())
+        if n_positive < 10:
+            raise ValueError(f"的中サンプル数不足: {n_positive}件 (最低10件必要)")
+
+        logger.info(
+            f"CV Weight最適化開始: {len(y)}サンプル, {n_folds}fold, "
+            f"{len(factor_names)}ファクター"
+        )
+
+        if progress_callback:
+            progress_callback(1, 4, f"交差検証中 ({n_folds}fold)...")
+
+        # 交差検証でOOF予測を蓄積
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+        oof_preds = np.zeros(len(y), dtype=np.int64)
+        oof_probs = np.zeros(len(y), dtype=np.float64)
+
+        for _fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_scaled, y)):
+            model_fold = LogisticRegression(
+                C=regularization, max_iter=1000, solver="lbfgs", class_weight="balanced",
+            )
+            model_fold.fit(X_scaled[train_idx], y[train_idx])
+            oof_preds[val_idx] = model_fold.predict(X_scaled[val_idx])
+            oof_probs[val_idx] = model_fold.predict_proba(X_scaled[val_idx])[:, 1]
+
+        oof_acc = float(accuracy_score(y, oof_preds))
+        oof_ll = float(log_loss(y, oof_probs))
+
+        if progress_callback:
+            progress_callback(2, 4, "最終モデル学習中...")
+
+        # 最終モデル（全データ）
+        model = LogisticRegression(
+            C=regularization, max_iter=1000, solver="lbfgs", class_weight="balanced",
+        )
+        model.fit(X_scaled, y)
+
+        y_pred = model.predict(X_scaled)
+        y_prob = model.predict_proba(X_scaled)[:, 1]
+        acc = float(accuracy_score(y, y_pred))
+        ll = float(log_loss(y, y_prob))
+
+        overfitting_gap = acc - oof_acc
+        if overfitting_gap > 0.05:
+            logger.warning(
+                f"過学習の兆候: in-sample={acc:.3f}, OOF={oof_acc:.3f}, "
+                f"gap={overfitting_gap:.3f}"
+            )
+
+        if progress_callback:
+            progress_callback(3, 4, "最適Weight算出中...")
+
+        coefs = model.coef_[0]
+        raw_coefs = {name: float(c) for name, c in zip(factor_names, coefs, strict=False)}
+        optimized_weights = self._normalize_coefs(coefs, factor_names)
+
+        rules = self._registry.get_active_rules()
+        current_weights = {r["rule_name"]: r.get("weight", 1.0) for r in rules}
+
+        elapsed = time.perf_counter() - t_start
+        logger.info(
+            f"CV Weight最適化完了: accuracy={acc:.3f}(OOF={oof_acc:.3f}), "
+            f"log_loss={ll:.4f}(OOF={oof_ll:.4f}), gap={overfitting_gap:.3f}, "
+            f"elapsed={elapsed:.2f}s"
+        )
+
+        return {
+            "weights": optimized_weights,
+            "current_weights": current_weights,
+            "accuracy": acc,
+            "log_loss": ll,
+            "oof_accuracy": oof_acc,
+            "oof_log_loss": oof_ll,
+            "overfitting_gap": overfitting_gap,
+            "n_samples": len(y),
+            "n_positive": n_positive,
+            "n_folds": n_folds,
             "feature_coefs": raw_coefs,
             "training_from": date_from,
             "training_to": date_to,

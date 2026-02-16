@@ -490,13 +490,19 @@ class TrialRunner:
 
         X_selected = X[:, col_indices]
 
+        # 特徴量スケーリング（weight_optimizer.pyと統一）
+        from sklearn.preprocessing import StandardScaler
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_selected)
+
         model = LogisticRegression(
             C=config.regularization,
             max_iter=500,
             solver="lbfgs",
             class_weight="balanced",
         )
-        model.fit(X_selected, y)
+        model.fit(X_scaled, y)
 
         # 係数からweightを算出
         coefs = model.coef_[0]

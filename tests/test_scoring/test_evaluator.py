@@ -24,6 +24,9 @@ def sample_horse():
         "DMJyuni": "3",
         "HaronTimeL3": "345",  # 34.5秒
         "KyakusituKubun": "3",  # 差し
+        "Jyuni1c": "10",
+        "Jyuni2c": "8",
+        "Jyuni3c": "7",
         "Jyuni4c": "6",
         "Odds": "85",  # 8.5倍
     }
@@ -36,6 +39,11 @@ def sample_race():
         "TrackCD": "10",  # 芝左
         "TenkoCD": "1",   # 晴
         "RaceNum": "06",
+        "SibaBabaCD": "1",   # 良馬場
+        "DirtBabaCD": "",
+        "GradeCD": "B",      # G2
+        "SyubetuCD": "04",
+        "SyussoTosu": "12",
     }
 
 
@@ -282,4 +290,71 @@ class TestPrevContext:
             prev_context=prev_context,
         )
         # prev_is_front_runner=True, is_sprint=False(1600m) → 0
+        assert result == 0.0
+
+
+class TestExtendedContextVariables:
+    """Phase1拡張: 馬場状態・グレード・コーナー通過順位のテスト。"""
+
+    def test_baba_variables(self, sample_horse, sample_race, sample_entries):
+        """馬場状態変数が正しく設定されること。"""
+        ctx = build_eval_context(sample_horse, sample_race, sample_entries)
+        assert ctx["baba_cd"] == "1"
+        assert ctx["is_good_baba"] is True
+        assert ctx["is_heavy_baba"] is False
+
+    def test_heavy_baba(self, sample_horse, sample_entries):
+        """重馬場フラグが正しく判定されること。"""
+        race = {"SibaBabaCD": "4", "DirtBabaCD": "", "TrackCD": "10"}
+        ctx = build_eval_context(sample_horse, race, sample_entries)
+        assert ctx["is_good_baba"] is False
+        assert ctx["is_heavy_baba"] is True
+
+    def test_grade_variables(self, sample_horse, sample_race, sample_entries):
+        """レースグレード変数が正しく設定されること。"""
+        ctx = build_eval_context(sample_horse, sample_race, sample_entries)
+        assert ctx["grade_cd"] == "B"
+        assert ctx["is_graded"] is True
+
+    def test_non_graded_race(self, sample_horse, sample_entries):
+        """非重賞レースでis_gradedがFalseになること。"""
+        race = {"GradeCD": "", "TrackCD": "10"}
+        ctx = build_eval_context(sample_horse, race, sample_entries)
+        assert ctx["is_graded"] is False
+
+    def test_corner_positions(self, sample_horse, sample_race, sample_entries):
+        """コーナー通過順位が正しく取得されること。"""
+        ctx = build_eval_context(sample_horse, sample_race, sample_entries)
+        assert ctx["corner1_pos"] == 10
+        assert ctx["corner2_pos"] == 8
+        assert ctx["corner3_pos"] == 7
+        assert ctx["corner4_pos"] == 6
+
+    def test_position_change(self, sample_horse, sample_race, sample_entries):
+        """コーナー位置変化量が正しく計算されること。"""
+        ctx = build_eval_context(sample_horse, sample_race, sample_entries)
+        # corner1(10) - corner4(6) = 4（前方に押し上げ）
+        assert ctx["position_change"] == 4
+
+    def test_syusso_tosu(self, sample_horse, sample_race, sample_entries):
+        """出走頭数（DB値）が正しく取得されること。"""
+        ctx = build_eval_context(sample_horse, sample_race, sample_entries)
+        assert ctx["syusso_tosu"] == 12
+
+    def test_baba_rule_evaluation(self, sample_horse, sample_race, sample_entries):
+        """馬場条件を使ったルール評価。"""
+        result = evaluate_rule(
+            "1 if is_good_baba and is_front_runner else 0",
+            sample_horse, sample_race, sample_entries,
+        )
+        # is_good_baba=True, is_front_runner=False(差し) → 0
+        assert result == 0.0
+
+    def test_grade_rule_evaluation(self, sample_horse, sample_race, sample_entries):
+        """グレード条件を使ったルール評価。"""
+        result = evaluate_rule(
+            "1 if is_graded and is_favorite else 0",
+            sample_horse, sample_race, sample_entries,
+        )
+        # is_graded=True, is_favorite=False(Ninki=8) → 0
         assert result == 0.0

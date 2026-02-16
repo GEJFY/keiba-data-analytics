@@ -113,21 +113,32 @@ class ScoringEngine:
         self,
         score_result: dict[str, Any],
         actual_odds: float,
+        track_type: str = "turf",
+        distance: int = 1600,
     ) -> dict[str, Any]:
         """スコアから期待値を算出する。
 
         Args:
             score_result: score_horse()の戻り値
             actual_odds: 実際のオッズ
+            track_type: トラック種別 ("turf"/"dirt") — 層別キャリブレーション用
+            distance: 距離（メートル） — 層別キャリブレーション用
 
         Returns:
             score_resultに確率・EV情報を追加したdict
         """
         total_score = score_result["total_score"]
 
-        # 確率校正
+        # 確率校正（StratifiedCalibrator対応）
         if self._calibrator:
-            estimated_prob = self._calibrator.predict_proba(total_score)
+            from src.scoring.stratified_calibrator import StratifiedCalibrator
+
+            if isinstance(self._calibrator, StratifiedCalibrator):
+                estimated_prob = self._calibrator.predict_proba(
+                    total_score, track_type=track_type, distance=distance,
+                )
+            else:
+                estimated_prob = self._calibrator.predict_proba(total_score)
         else:
             # 校正モデルがない場合のフォールバック（線形変換）
             if not self._fallback_warned:
@@ -152,6 +163,14 @@ class ScoringEngine:
         """安全に浮動小数点変換する。"""
         try:
             return float(value)
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
+    def _safe_int(value: Any, default: int = 0) -> int:
+        """安全に整数変換する。"""
+        try:
+            return int(value)
         except (ValueError, TypeError):
             return default
 
@@ -198,6 +217,11 @@ class ScoringEngine:
         else:
             prev_contexts = [None] * len(entries)
 
+        # 層別キャリブレーション用のレース情報
+        track_cd = str(race.get("TrackCD", ""))
+        track_type = "dirt" if track_cd.startswith("2") else "turf"
+        distance = self._safe_int(race.get("Kyori", 1600))
+
         for i, horse in enumerate(entries):
             score_result = self.score_horse(
                 horse, race, entries, rules,
@@ -208,7 +232,10 @@ class ScoringEngine:
             actual_odds = odds_map.get(umaban, 0.0)
 
             if actual_odds > 0:
-                ev_result = self.calculate_ev(score_result, actual_odds)
+                ev_result = self.calculate_ev(
+                    score_result, actual_odds,
+                    track_type=track_type, distance=distance,
+                )
                 results.append(ev_result)
 
         return sorted(results, key=lambda x: x["expected_value"], reverse=True)

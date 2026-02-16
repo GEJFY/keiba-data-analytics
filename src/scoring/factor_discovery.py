@@ -306,6 +306,22 @@ class FactorDiscovery:
                 feat["l3f_fast"] = 1 if 0 < l3f <= 34.0 else 0
                 feat["l3f_slow"] = 1 if l3f >= 37.0 else 0
 
+                # 馬場状態
+                siba_baba = str(rk.get("SibaBabaCD", ""))
+                dirt_baba = str(rk.get("DirtBabaCD", ""))
+                feat["is_good_baba"] = 1 if siba_baba == "1" or dirt_baba == "1" else 0
+                feat["is_heavy_baba"] = 1 if siba_baba in ("3", "4") or dirt_baba in ("3", "4") else 0
+
+                # レースグレード
+                grade_cd = str(rk.get("GradeCD", ""))
+                feat["is_graded"] = 1 if grade_cd in ("A", "B", "C") else 0
+
+                # コーナー位置変化（追い込み度）
+                corner1 = _safe_int(horse.get("Jyuni1c", 0))
+                corner4_val = _safe_int(horse.get("Jyuni4c", 0))
+                feat["position_change"] = corner1 - corner4_val if corner1 > 0 and corner4_val > 0 else 0
+                feat["is_makuri"] = 1 if feat["position_change"] >= 5 else 0
+
                 features_list.append(feat)
 
         logger.info(
@@ -379,7 +395,7 @@ class FactorDiscovery:
         numeric_features = [
             name for name in all_feature_names
             if name not in ("TrackCD",)
-            and any(isinstance(f.get(name), (int, float)) for f in features_list)
+            and any(isinstance(f.get(name), int | float) for f in features_list)
         ]
 
         if progress_callback:

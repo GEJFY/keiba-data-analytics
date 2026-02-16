@@ -202,3 +202,52 @@ class TestWeightOptimizer:
         assert WeightOptimizer._normalize_date("20240101") == "2024-01-01"
         assert WeightOptimizer._normalize_date("2024-01-01") == "2024-01-01"
         assert WeightOptimizer._normalize_date("") == ""
+
+    def test_optimize_with_scaling(self, dbs) -> None:
+        """StandardScaler適用時のweight範囲が正しいこと。"""
+        jvlink_db, ext_db = dbs
+        optimizer = WeightOptimizer(jvlink_db, ext_db)
+        result = optimizer.optimize()
+
+        # 全weightが0.1〜MAX_WEIGHTの範囲内
+        for name, w in result["weights"].items():
+            assert 0.1 <= w <= WeightOptimizer.MAX_WEIGHT, (
+                f"{name}: weight={w} が範囲外"
+            )
+
+    def test_optimize_with_cv_returns_oof_metrics(self, dbs) -> None:
+        """交差検証付き最適化がOOFメトリクスを含むこと。"""
+        jvlink_db, ext_db = dbs
+        optimizer = WeightOptimizer(jvlink_db, ext_db)
+        result = optimizer.optimize_with_cv(n_folds=3)
+
+        # 基本キーの存在
+        assert "weights" in result
+        assert "accuracy" in result
+        assert "log_loss" in result
+
+        # CV固有キー
+        assert "oof_accuracy" in result
+        assert "oof_log_loss" in result
+        assert "overfitting_gap" in result
+        assert "n_folds" in result
+
+        # OOF精度が妥当な範囲
+        assert 0.0 <= result["oof_accuracy"] <= 1.0
+        assert result["oof_log_loss"] >= 0.0
+        assert result["n_folds"] == 3
+
+        # overfitting_gap = accuracy - oof_accuracy
+        expected_gap = result["accuracy"] - result["oof_accuracy"]
+        assert abs(result["overfitting_gap"] - expected_gap) < 1e-6
+
+    def test_optimize_with_cv_weight_range(self, dbs) -> None:
+        """CV最適化のweightも正しい範囲内であること。"""
+        jvlink_db, ext_db = dbs
+        optimizer = WeightOptimizer(jvlink_db, ext_db)
+        result = optimizer.optimize_with_cv(n_folds=3)
+
+        for name, w in result["weights"].items():
+            assert 0.1 <= w <= WeightOptimizer.MAX_WEIGHT, (
+                f"{name}: weight={w} が範囲外"
+            )

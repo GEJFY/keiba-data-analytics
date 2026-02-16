@@ -162,9 +162,25 @@ def build_eval_context(
         "last_3f_rank": last_3f_rank,
         # --- 脚質・位置取り ---
         "running_style": running_style,
+        "corner1_pos": _safe_int(horse.get("Jyuni1c", 0)),
+        "corner2_pos": _safe_int(horse.get("Jyuni2c", 0)),
+        "corner3_pos": _safe_int(horse.get("Jyuni3c", 0)),
         "corner4_pos": corner4_pos,
+        "position_change": _safe_int(horse.get("Jyuni1c", 0)) - corner4_pos,
         "is_front_runner": running_style in (1, 2),  # 逃げ or 先行
         "is_closer": running_style in (3, 4),  # 差し or 追込
+        # --- 馬場状態 ---
+        "baba_cd": str(race.get("SibaBabaCD", "")),
+        "dirt_baba_cd": str(race.get("DirtBabaCD", "")),
+        "is_good_baba": str(race.get("SibaBabaCD", "")) == "1" or str(race.get("DirtBabaCD", "")) == "1",
+        "is_heavy_baba": str(race.get("SibaBabaCD", "")) in ("3", "4")
+        or str(race.get("DirtBabaCD", "")) in ("3", "4"),
+        # --- レースグレード ---
+        "grade_cd": str(race.get("GradeCD", "")),
+        "syubetu_cd": str(race.get("SyubetuCD", "")),
+        "is_graded": str(race.get("GradeCD", "")) in ("A", "B", "C"),
+        # --- 出走頭数（DB値） ---
+        "syusso_tosu": _safe_int(race.get("SyussoTosu", 0)),
         # --- 単勝オッズ ---
         "odds": odds,
         # --- フラグ ---
