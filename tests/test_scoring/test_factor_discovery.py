@@ -203,3 +203,45 @@ class TestFactorDiscovery:
         result = discovery.discover(max_races=100)
         # 6頭立て × target_jyuni=1 → 基準的中率 ≈ 1/6
         assert 0.1 <= result["base_rate"] <= 0.25
+
+    def test_baba_interaction_candidates(self, discovery: FactorDiscovery) -> None:
+        """馬場フラグがインタラクション候補に含まれること。"""
+        # discover() を実行してinteractionsが構造を持つこと
+        result = discovery.discover(max_races=100, min_auc=0.50)
+        assert "interactions" in result
+        # interactions の各エントリが必要キーを持つ
+        for inter in result["interactions"]:
+            assert "feature_1" in inter
+            assert "feature_2" in inter
+            assert "lift" in inter
+            assert "suggested_expression" in inter
+
+    def test_categorize_baba_features(self) -> None:
+        """馬場・グレード・位置変化の特徴量が正しくカテゴリ分けされること。"""
+        import os
+        import tempfile
+
+        from src.data.db import DatabaseManager
+        with tempfile.TemporaryDirectory() as tmp:
+            db = DatabaseManager(os.path.join(tmp, "test.db"), wal_mode=False)
+            fd = FactorDiscovery(db, None)
+            assert fd._categorize_feature("is_good_baba") == "baba"
+            assert fd._categorize_feature("is_heavy_baba") == "baba"
+            assert fd._categorize_feature("is_graded") == "grade"
+            assert fd._categorize_feature("position_change") == "pace"
+            assert fd._categorize_feature("is_makuri") == "pace"
+
+    def test_context_var_names_for_new_features(self) -> None:
+        """新特徴量のコンテキスト変数名が正しくマッピングされること。"""
+        import os
+        import tempfile
+
+        from src.data.db import DatabaseManager
+        with tempfile.TemporaryDirectory() as tmp:
+            db = DatabaseManager(os.path.join(tmp, "test.db"), wal_mode=False)
+            fd = FactorDiscovery(db, None)
+            assert fd._get_context_var_name("is_good_baba") == "is_good_baba"
+            assert fd._get_context_var_name("is_heavy_baba") == "is_heavy_baba"
+            assert fd._get_context_var_name("is_graded") == "is_graded"
+            assert fd._get_context_var_name("position_change") == "position_change"
+            assert fd._get_context_var_name("is_makuri") == "position_change >= 5"

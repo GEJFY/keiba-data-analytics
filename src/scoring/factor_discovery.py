@@ -121,6 +121,11 @@ class FactorDiscovery:
         "Jyuni4c": "4角順位",
         "Wakuban": "枠番",
         "Umaban": "馬番",
+        "is_good_baba": "良馬場",
+        "is_heavy_baba": "重馬場",
+        "is_graded": "重賞",
+        "position_change": "位置変化",
+        "is_makuri": "まくり",
     }
 
     def __init__(
@@ -526,6 +531,12 @@ class FactorDiscovery:
             return "course"
         if name in ("num_entries",):
             return "race"
+        if name in ("is_good_baba", "is_heavy_baba"):
+            return "baba"
+        if name in ("is_graded",):
+            return "grade"
+        if name in ("position_change", "is_makuri"):
+            return "pace"
         return "derived"
 
     def _suggest_expression(
@@ -619,6 +630,12 @@ class FactorDiscovery:
             "futan_per_weight": "Futan / max(weight, 1)",
             "odds_dm_gap": "abs(Ninki - dm_rank)",
             "odds_x_dm": "odds * dm_rank",
+            # 馬場・グレード・位置変化
+            "is_good_baba": "is_good_baba",
+            "is_heavy_baba": "is_heavy_baba",
+            "is_graded": "is_graded",
+            "position_change": "position_change",
+            "is_makuri": "position_change >= 5",
         }
         return mapping.get(col_name, col_name)
 
@@ -639,6 +656,8 @@ class FactorDiscovery:
             "is_female", "is_gelding", "is_young", "is_old",
             "weight_decrease", "weight_increase_large",
             "l3f_fast", "l3f_slow",
+            # 馬場・グレード・位置変化フラグ
+            "is_good_baba", "is_heavy_baba", "is_graded", "is_makuri",
         ]
         # 存在する変数のみ
         available = [
