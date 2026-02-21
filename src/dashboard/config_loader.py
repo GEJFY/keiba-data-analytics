@@ -137,6 +137,21 @@ def _ensure_ext_schema(db_path: Path) -> None:
                     FOREIGN KEY (snapshot_id) REFERENCES rule_set_snapshots(snapshot_id)
                 )
             """)
+        # bankroll_log テーブル
+        if "bankroll_log" not in tables:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS bankroll_log (
+                    log_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date            TEXT NOT NULL,
+                    opening_balance INTEGER NOT NULL,
+                    total_stake     INTEGER DEFAULT 0,
+                    total_payout    INTEGER DEFAULT 0,
+                    closing_balance INTEGER NOT NULL,
+                    pnl             INTEGER DEFAULT 0,
+                    roi             REAL    DEFAULT 0.0,
+                    note            TEXT    DEFAULT ''
+                )
+            """)
         conn.commit()
     except Exception as e:
         logger.warning(f"拡張DBマイグレーション失敗: {e}")

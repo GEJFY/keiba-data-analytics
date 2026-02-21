@@ -67,6 +67,19 @@ def _init_ext(db: DatabaseManager) -> None:
                 settled_at TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE bankroll_log (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                opening_balance INTEGER NOT NULL,
+                total_stake INTEGER DEFAULT 0,
+                total_payout INTEGER DEFAULT 0,
+                closing_balance INTEGER NOT NULL,
+                pnl INTEGER DEFAULT 0,
+                roi REAL DEFAULT 0.0,
+                note TEXT DEFAULT ''
+            )
+        """)
         # 単勝03（的中）
         conn.execute("""
             INSERT INTO bets (race_key, bet_type, selection, stake_yen, odds_at_bet, est_ev, status)
@@ -159,6 +172,113 @@ class TestResultCollector:
         # 2回目は照合対象なし
         count = collector.reconcile_all_pending()
         assert count == 0
+
+
+    def test_reconcile_sets_status_settled(self, jvlink_db, ext_db) -> None:
+        """reconcile後にstatus=SETTLEDになること。"""
+        collector = ResultCollector(jvlink_db, ext_db)
+        collector.reconcile_bets("2025010506010101")
+        rows = ext_db.execute_query(
+            "SELECT status FROM bets WHERE result IS NOT NULL"
+        )
+        assert len(rows) == 3
+        assert all(r["status"] == "SETTLED" for r in rows)
+
+
+class TestWriteDailySnapshot:
+    """write_daily_snapshot のテスト。"""
+
+    def test_write_basic(self, jvlink_db, ext_db) -> None:
+        """bankroll_log に1行書き込まれること。"""
+        collector = ResultCollector(jvlink_db, ext_db)
+        collector.reconcile_bets("2025010506010101")
+
+        # settled_at の日付部分を取得
+        rows = ext_db.execute_query(
+            "SELECT settled_at FROM bets WHERE settled_at IS NOT NULL LIMIT 1"
+        )
+        date_str = rows[0]["settled_at"][:10]
+
+        result = collector.write_daily_snapshot(date_str, initial_bankroll=1_000_000)
+        assert result is True
+
+        log = ext_db.execute_query(
+            "SELECT * FROM bankroll_log WHERE date = ?", (date_str,)
+        )
+        assert len(log) == 1
+        assert log[0]["opening_balance"] == 1_000_000
+        assert log[0]["total_stake"] > 0
+        assert log[0]["closing_balance"] == log[0]["opening_balance"] + log[0]["pnl"]
+
+    def test_upsert(self, jvlink_db, ext_db) -> None:
+        """同一日に2回書き込むと1行のみになること。"""
+        collector = ResultCollector(jvlink_db, ext_db)
+        collector.reconcile_bets("2025010506010101")
+
+        rows = ext_db.execute_query(
+            "SELECT settled_at FROM bets WHERE settled_at IS NOT NULL LIMIT 1"
+        )
+        date_str = rows[0]["settled_at"][:10]
+
+        collector.write_daily_snapshot(date_str, 1_000_000)
+        collector.write_daily_snapshot(date_str, 1_000_000)
+        log = ext_db.execute_query(
+            "SELECT * FROM bankroll_log WHERE date = ?", (date_str,)
+        )
+        assert len(log) == 1
+
+    def test_no_bets_table(self, jvlink_db, tmp_path) -> None:
+        """betsテーブルなしでFalseを返すこと。"""
+        bare_db = DatabaseManager(str(tmp_path / "bare.db"), wal_mode=False)
+        collector = ResultCollector(jvlink_db, bare_db)
+        assert collector.write_daily_snapshot("2025-01-05") is False
+
+    def test_no_bankroll_log_table(self, jvlink_db, tmp_path) -> None:
+        """bankroll_logテーブルなしでFalseを返すこと。"""
+        db = DatabaseManager(str(tmp_path / "no_log.db"), wal_mode=False)
+        with db.connect() as conn:
+            conn.execute("""
+                CREATE TABLE bets (
+                    bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    race_key TEXT, bet_type TEXT, selection TEXT,
+                    stake_yen INTEGER, odds_at_bet REAL, est_ev REAL,
+                    status TEXT, result TEXT, payout_yen INTEGER DEFAULT 0,
+                    settled_at TEXT
+                )
+            """)
+        collector = ResultCollector(jvlink_db, db)
+        assert collector.write_daily_snapshot("2025-01-05") is False
+
+    def test_no_settled_bets(self, jvlink_db, ext_db) -> None:
+        """決済済みベットなしでFalseを返すこと。"""
+        collector = ResultCollector(jvlink_db, ext_db)
+        # reconcile せずにスナップショットを試みる
+        assert collector.write_daily_snapshot("2025-01-05") is False
+
+    def test_opening_balance_from_previous(self, jvlink_db, ext_db) -> None:
+        """前日closing_balanceが当日opening_balanceになること。"""
+        # 前日スナップショットを先に挿入
+        ext_db.execute_write(
+            """INSERT INTO bankroll_log
+               (date, opening_balance, total_stake, total_payout,
+                closing_balance, pnl, roi)
+               VALUES ('2025-01-04', 900000, 0, 0, 950000, 50000, 0.0)"""
+        )
+
+        collector = ResultCollector(jvlink_db, ext_db)
+        collector.reconcile_bets("2025010506010101")
+
+        rows = ext_db.execute_query(
+            "SELECT settled_at FROM bets WHERE settled_at IS NOT NULL LIMIT 1"
+        )
+        date_str = rows[0]["settled_at"][:10]
+
+        collector.write_daily_snapshot(date_str, initial_bankroll=1_000_000)
+        log = ext_db.execute_query(
+            "SELECT * FROM bankroll_log WHERE date = ?", (date_str,)
+        )
+        # 前日のclosing_balance (950000) を引き継ぐ
+        assert log[0]["opening_balance"] == 950000
 
 
 class TestCalculatePayout:

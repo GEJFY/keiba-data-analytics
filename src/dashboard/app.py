@@ -98,6 +98,7 @@ def main() -> None:
         ],
         "運用": [
             st.Page("pages/page_pnl.py", title="収支", icon="💰"),
+            st.Page("pages/page_tax.py", title="税務レポート", icon="🧾"),
             st.Page("pages/page_backtest.py", title="バックテスト", icon="📈"),
             st.Page("pages/page_model_search.py", title="モデル探索", icon="🔍"),
             st.Page("pages/page_automation.py", title="自動化", icon="⚡"),
