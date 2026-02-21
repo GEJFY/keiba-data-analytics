@@ -33,17 +33,17 @@ JYO_MAP = {
 }
 
 
-def _run_async(coro):
-    """Streamlit環境でasync関数を実行するヘルパー。"""
+def _run_async(coro):  # type: ignore[no-untyped-def]
+    """Streamlit環境でasync関数を実行するヘルパー。
+
+    新規イベントループを作成して実行することで、
+    既存ループとの競合によるデッドロックを回避する。
+    """
+    loop = asyncio.new_event_loop()
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(asyncio.run, coro).result()
         return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
+    finally:
+        loop.close()
 
 
 # ==============================
@@ -77,8 +77,13 @@ with tab_analysis:
     st.subheader("レース分析")
     st.caption("選択したレースのスコアリング結果をAIが分析します。")
 
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _cached_race_list(_db_path: str) -> list:
+        p = JVLinkDataProvider(jvlink_db)
+        return p.get_race_list(limit=200)
+
     provider = JVLinkDataProvider(jvlink_db)
-    races = provider.get_race_list(limit=200)
+    races = _cached_race_list(jvlink_db._db_path)
 
     if not races:
         st.warning("レースデータがありません。")
@@ -96,24 +101,27 @@ with tab_analysis:
         race_row = race_options[selected]
 
         if st.button("分析実行", key="btn_analysis"):
-            race_key = JVLinkDataProvider.build_race_key(race_row)
-            race_info = provider.get_race_info(race_key)
-            entries = provider.get_race_entries(race_key)
-            odds_map = provider.get_odds(race_key)
+            try:
+                race_key = JVLinkDataProvider.build_race_key(race_row)
+                race_info = provider.get_race_info(race_key)
+                entries = provider.get_race_entries(race_key)
+                odds_map = provider.get_odds(race_key)
 
-            if race_info and entries:
-                engine = ScoringEngine(ext_db, jvlink_provider=provider)
-                scored = engine.score_race(race_info, entries, odds_map, race_key=race_key)
+                if race_info and entries:
+                    engine = ScoringEngine(ext_db, jvlink_provider=provider)
+                    scored = engine.score_race(race_info, entries, odds_map, race_key=race_key)
 
-                agent = RaceAnalysisAgent(gateway=gateway)
-                with st.spinner("分析中..."):
-                    result = _run_async(agent.run({
-                        "race_info": race_info,
-                        "scored_results": scored,
-                    }))
-                st.markdown(result)
-            else:
-                st.warning("レースデータの取得に失敗しました。")
+                    agent = RaceAnalysisAgent(gateway=gateway)
+                    with st.spinner("分析中..."):
+                        result = _run_async(agent.run({
+                            "race_info": race_info,
+                            "scored_results": scored,
+                        }))
+                    st.markdown(result)
+                else:
+                    st.warning("レースデータの取得に失敗しました。")
+            except Exception as e:
+                st.error(f"分析中にエラーが発生しました: {e}")
 
 # ===== Tab 2: ファクター提案 =====
 with tab_factor:
@@ -121,34 +129,36 @@ with tab_factor:
     st.caption("現在のファクター構成を分析し、新規ルール候補を提案します。")
 
     if st.button("提案を生成", key="btn_factor"):
-        registry = FactorRegistry(ext_db)
-        active_rules = registry.get_active_rules()
+        try:
+            registry = FactorRegistry(ext_db)
+            active_rules = registry.get_active_rules()
 
-        # バックテストサマリー取得
-        bt_rows = ext_db.execute_query(
-            "SELECT strategy_version, roi, win_rate, total_bets, pnl, max_drawdown "
-            "FROM backtest_results ORDER BY executed_at DESC LIMIT 3"
-        ) if ext_db.table_exists("backtest_results") else []
+            bt_rows = ext_db.execute_query(
+                "SELECT strategy_version, roi, win_rate, total_bets, pnl, max_drawdown "
+                "FROM backtest_results ORDER BY executed_at DESC LIMIT 3"
+            ) if ext_db.table_exists("backtest_results") else []
 
-        bt_summary = ""
-        if bt_rows:
-            for r in bt_rows:
-                bt_summary += (
-                    f"- {r.get('strategy_version', '?')}: "
-                    f"ROI={r.get('roi', 0):+.1%}, "
-                    f"勝率={r.get('win_rate', 0):.1%}, "
-                    f"P&L={r.get('pnl', 0):+,}円\n"
-                )
-        else:
-            bt_summary = "バックテスト未実行"
+            bt_summary = ""
+            if bt_rows:
+                for r in bt_rows:
+                    bt_summary += (
+                        f"- {r.get('strategy_version', '?')}: "
+                        f"ROI={r.get('roi', 0):+.1%}, "
+                        f"勝率={r.get('win_rate', 0):.1%}, "
+                        f"P&L={r.get('pnl', 0):+,}円\n"
+                    )
+            else:
+                bt_summary = "バックテスト未実行"
 
-        agent = FactorProposalAgent(gateway=gateway)
-        with st.spinner("ファクター候補を生成中..."):
-            result = _run_async(agent.run({
-                "existing_rules": active_rules,
-                "backtest_summary": bt_summary,
-            }))
-        st.markdown(result)
+            agent = FactorProposalAgent(gateway=gateway)
+            with st.spinner("ファクター候補を生成中..."):
+                result = _run_async(agent.run({
+                    "existing_rules": active_rules,
+                    "backtest_summary": bt_summary,
+                }))
+            st.markdown(result)
+        except Exception as e:
+            st.error(f"提案生成中にエラーが発生しました: {e}")
 
 # ===== Tab 3: レポート生成 =====
 with tab_report:
@@ -156,22 +166,23 @@ with tab_report:
     st.caption("バックテスト結果と運用データからレポートを生成します。")
 
     if st.button("レポート生成", key="btn_report"):
-        # バックテスト結果取得
-        bt_rows = ext_db.execute_query(
-            "SELECT * FROM backtest_results ORDER BY executed_at DESC LIMIT 5"
-        ) if ext_db.table_exists("backtest_results") else []
+        try:
+            bt_rows = ext_db.execute_query(
+                "SELECT * FROM backtest_results ORDER BY executed_at DESC LIMIT 5"
+            ) if ext_db.table_exists("backtest_results") else []
 
-        # 有効ファクター取得
-        registry = FactorRegistry(ext_db)
-        active_rules = registry.get_active_rules()
+            registry = FactorRegistry(ext_db)
+            active_rules = registry.get_active_rules()
 
-        agent = ReportAgent(gateway=gateway)
-        with st.spinner("レポート生成中..."):
-            result = _run_async(agent.run({
-                "backtest_results": bt_rows,
-                "active_rules": active_rules,
-            }))
-        st.markdown(result)
+            agent = ReportAgent(gateway=gateway)
+            with st.spinner("レポート生成中..."):
+                result = _run_async(agent.run({
+                    "backtest_results": bt_rows,
+                    "active_rules": active_rules,
+                }))
+            st.markdown(result)
+        except Exception as e:
+            st.error(f"レポート生成中にエラーが発生しました: {e}")
 
 # ===== Tab 4: 自然言語クエリ =====
 with tab_nl:
@@ -184,10 +195,13 @@ with tab_nl:
         key="nl_question",
     )
     if st.button("検索", key="btn_nl") and question:
-        agent = NLQueryAgent(gateway=gateway, jvlink_db=jvlink_db)
-        with st.spinner("検索中..."):
-            result = _run_async(agent.run({"question": question}))
-        st.markdown(result)
+        try:
+            agent = NLQueryAgent(gateway=gateway, jvlink_db=jvlink_db)
+            with st.spinner("検索中..."):
+                result = _run_async(agent.run({"question": question}))
+            st.markdown(result)
+        except Exception as e:
+            st.error(f"検索中にエラーが発生しました: {e}")
 
 # ===== Tab 5: アラート解釈 =====
 with tab_alert:
@@ -211,14 +225,17 @@ with tab_alert:
         alert_data["umaban"] = umaban
 
     if st.button("アラートを解釈", key="btn_alert") and alert_message:
-        agent = AlertInterpreterAgent(gateway=gateway)
-        with st.spinner("解釈中..."):
-            result = _run_async(agent.run({
-                "alerts": [{"type": alert_type, "message": alert_message, "data": alert_data}],
-                "race_info": {},
-                "current_bets": [],
-            }))
-        st.markdown(result)
+        try:
+            agent = AlertInterpreterAgent(gateway=gateway)
+            with st.spinner("解釈中..."):
+                result = _run_async(agent.run({
+                    "alerts": [{"type": alert_type, "message": alert_message, "data": alert_data}],
+                    "race_info": {},
+                    "current_bets": [],
+                }))
+            st.markdown(result)
+        except Exception as e:
+            st.error(f"解釈中にエラーが発生しました: {e}")
 
 # ===== Tab 6: ディープリサーチ =====
 with tab_research:
@@ -245,7 +262,10 @@ with tab_research:
         context["kyori"] = st.text_input("距離(m)", value="1600", key="research_kyori")
 
     if st.button("リサーチ実行", key="btn_research"):
-        agent = DeepResearchAgent(gateway=gateway, jvlink_db=jvlink_db)
-        with st.spinner("リサーチ中..."):
-            result = _run_async(agent.run(context))
-        st.markdown(result)
+        try:
+            agent = DeepResearchAgent(gateway=gateway, jvlink_db=jvlink_db)
+            with st.spinner("リサーチ中..."):
+                result = _run_async(agent.run(context))
+            st.markdown(result)
+        except Exception as e:
+            st.error(f"リサーチ中にエラーが発生しました: {e}")
