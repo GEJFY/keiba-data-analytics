@@ -1,9 +1,12 @@
 """Tab 6: AIアシスタントページ。
 
-3つのAIエージェント機能を提供:
+6つのAIエージェント機能を提供:
     1. レース分析 — スコアリング結果のAI分析コメント
     2. ファクター提案 — 新規ファクタールール候補の生成
     3. パフォーマンスレポート — バックテスト結果の分析レポート
+    4. 自然言語クエリ — DB検索
+    5. アラート解釈 — オッズ変動等のアラート分析
+    6. ディープリサーチ — 馬/騎手/コースの詳細分析
 
 LLM Gateway未設定時もフォールバック応答で動作する。
 """
@@ -12,7 +15,10 @@ import asyncio
 
 import streamlit as st
 
+from src.agents.alert_interpreter import AlertInterpreterAgent
+from src.agents.deep_research import DeepResearchAgent
 from src.agents.factor_proposal import FactorProposalAgent
+from src.agents.nl_query import NLQueryAgent
 from src.agents.race_analysis import RaceAnalysisAgent
 from src.agents.report import ReportAgent
 from src.data.db import DatabaseManager
@@ -61,8 +67,9 @@ else:
         "`.env` に `AZURE_OPENAI_API_KEY` と `AZURE_OPENAI_ENDPOINT` を設定して再起動してください。"
     )
 
-tab_analysis, tab_factor, tab_report = st.tabs([
-    "レース分析", "ファクター提案", "レポート生成"
+tab_analysis, tab_factor, tab_report, tab_nl, tab_alert, tab_research = st.tabs([
+    "レース分析", "ファクター提案", "レポート生成",
+    "自然言語クエリ", "アラート解釈", "ディープリサーチ",
 ])
 
 # ===== Tab 1: レース分析 =====
@@ -164,4 +171,81 @@ with tab_report:
                 "backtest_results": bt_rows,
                 "active_rules": active_rules,
             }))
+        st.markdown(result)
+
+# ===== Tab 4: 自然言語クエリ =====
+with tab_nl:
+    st.subheader("自然言語クエリ")
+    st.caption("競馬データベースに対して自然言語で質問できます。")
+
+    question = st.text_input(
+        "質問を入力してください",
+        placeholder="例: 1番人気の勝率は？",
+        key="nl_question",
+    )
+    if st.button("検索", key="btn_nl") and question:
+        agent = NLQueryAgent(gateway=gateway, jvlink_db=jvlink_db)
+        with st.spinner("検索中..."):
+            result = _run_async(agent.run({"question": question}))
+        st.markdown(result)
+
+# ===== Tab 5: アラート解釈 =====
+with tab_alert:
+    st.subheader("アラート解釈")
+    st.caption("発生中のアラートを入力して、投資判断への影響を分析します。")
+
+    alert_type = st.selectbox(
+        "アラートタイプ",
+        ["ODDS_DROP", "ODDS_SURGE", "SCRATCHED", "TRACK_CHANGE", "WEATHER_CHANGE"],
+        key="alert_type",
+    )
+    alert_message = st.text_input("アラートメッセージ", key="alert_message")
+
+    alert_data: dict = {}
+    if alert_type in ("ODDS_DROP", "ODDS_SURGE"):
+        rate = st.slider("変動率", 0.0, 1.0, 0.3, key="alert_rate")
+        key_name = "drop_rate" if alert_type == "ODDS_DROP" else "surge_rate"
+        alert_data[key_name] = rate
+    elif alert_type == "SCRATCHED":
+        umaban = st.text_input("馬番", key="alert_umaban")
+        alert_data["umaban"] = umaban
+
+    if st.button("アラートを解釈", key="btn_alert") and alert_message:
+        agent = AlertInterpreterAgent(gateway=gateway)
+        with st.spinner("解釈中..."):
+            result = _run_async(agent.run({
+                "alerts": [{"type": alert_type, "message": alert_message, "data": alert_data}],
+                "race_info": {},
+                "current_bets": [],
+            }))
+        st.markdown(result)
+
+# ===== Tab 6: ディープリサーチ =====
+with tab_research:
+    st.subheader("ディープリサーチ")
+    st.caption("馬・騎手・コースの詳細分析レポートを生成します。")
+
+    research_type = st.selectbox(
+        "リサーチタイプ",
+        ["horse", "jockey", "course"],
+        format_func=lambda x: {"horse": "馬", "jockey": "騎手", "course": "コース"}[x],
+        key="research_type",
+    )
+
+    context: dict = {"type": research_type}
+    if research_type == "horse":
+        context["bamei"] = st.text_input("馬名", key="research_bamei")
+    elif research_type == "jockey":
+        context["kisyu"] = st.text_input("騎手略称", key="research_kisyu")
+    elif research_type == "course":
+        context["jyo_cd"] = st.selectbox(
+            "競馬場", list(JYO_MAP.keys()),
+            format_func=lambda x: JYO_MAP[x], key="research_jyo",
+        )
+        context["kyori"] = st.text_input("距離(m)", value="1600", key="research_kyori")
+
+    if st.button("リサーチ実行", key="btn_research"):
+        agent = DeepResearchAgent(gateway=gateway, jvlink_db=jvlink_db)
+        with st.spinner("リサーチ中..."):
+            result = _run_async(agent.run(context))
         st.markdown(result)

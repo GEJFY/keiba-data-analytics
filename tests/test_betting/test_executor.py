@@ -94,12 +94,63 @@ class TestBetExecutor:
         csv_files = [f for f in os.listdir(csv_dir) if f.endswith(".csv")]
         assert len(csv_files) == 1
 
-    def test_selenium_mode_not_implemented(self, ext_db, sample_bets) -> None:
-        """SELENIUMモードは未実装でFAILEDになること。"""
+    def test_selenium_unavailable_returns_failed(
+        self, ext_db, sample_bets, monkeypatch
+    ) -> None:
+        """Selenium未インストール時はFAILEDが返ること。"""
+        from src.betting import selenium_executor
+
+        monkeypatch.setattr(
+            selenium_executor.SeleniumIPATExecutor,
+            "is_available",
+            lambda self: False,
+        )
         executor = BetExecutor(ext_db, method="selenium")
         results = executor.execute_bets(sample_bets)
         assert len(results) == 2
         assert all(r.status == "FAILED" for r in results)
+        assert all("インストール" in r.error_message for r in results)
+
+    def test_selenium_login_fails_returns_failed(
+        self, ext_db, sample_bets, monkeypatch
+    ) -> None:
+        """Seleniumログイン失敗時もFAILEDが返ること。"""
+        from src.betting import selenium_executor
+
+        monkeypatch.setattr(
+            selenium_executor.SeleniumIPATExecutor,
+            "is_available",
+            lambda self: True,
+        )
+        # login()はFalseを返す（スタブの現状動作）
+        executor = BetExecutor(ext_db, method="selenium")
+        results = executor.execute_bets(sample_bets)
+        assert len(results) == 2
+        assert all(r.status == "FAILED" for r in results)
+
+    def test_selenium_success_returns_executed(
+        self, ext_db, sample_bets, monkeypatch
+    ) -> None:
+        """Selenium成功時にEXECUTEDが返ること。"""
+        from src.betting import selenium_executor
+
+        monkeypatch.setattr(
+            selenium_executor.SeleniumIPATExecutor,
+            "is_available",
+            lambda self: True,
+        )
+        monkeypatch.setattr(
+            selenium_executor.SeleniumIPATExecutor,
+            "execute_bets",
+            lambda self, bets: [
+                {"success": True, "message": "投票成功", "screenshot": None}
+                for _ in bets
+            ],
+        )
+        executor = BetExecutor(ext_db, method="selenium")
+        results = executor.execute_bets(sample_bets)
+        assert len(results) == 2
+        assert all(r.status == "EXECUTED" for r in results)
 
     def test_invalid_method(self, ext_db) -> None:
         """無効なメソッドでValueErrorになること。"""
