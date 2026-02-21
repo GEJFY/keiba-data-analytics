@@ -46,7 +46,9 @@ def get_stratum(track_type: str, distance: int) -> str:
     """
     for name, spec in STRATA.items():
         if spec["track"] == track_type:
-            lo, hi = spec["dist"]
+            dist = spec["dist"]
+            lo = int(dist[0])
+            hi = int(dist[1])
             if lo <= distance <= hi:
                 return name
     return "unknown"

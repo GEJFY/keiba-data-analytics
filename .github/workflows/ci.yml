@@ -35,8 +35,6 @@ jobs:
 
       - name: Type check with mypy
         run: mypy src/ --ignore-missing-imports
-        # TODO: mypy厳格化は段階的に進める（現状は情報提供のみ）
-        continue-on-error: true
 
   test:
     runs-on: ubuntu-latest

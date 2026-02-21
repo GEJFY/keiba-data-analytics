@@ -82,8 +82,8 @@ def calculate_payout(
 
 def _resolve_actual_results(
     bets: list[Bet],
-    race_results: dict[str, dict],
-) -> list[dict]:
+    race_results: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
     """実際のレース結果からベット結果を判定する。
 
     Args:
@@ -114,7 +114,7 @@ def _resolve_actual_results(
     return results
 
 
-def _simulate_results(bets: list[Bet]) -> list[dict]:
+def _simulate_results(bets: list[Bet]) -> list[dict[str, Any]]:
     """ベットの推定確率とオッズから期待値ベースの結果を推定する。
 
     バックテスト時に実際の着順結果が利用可能な場合はそちらを使用すべきだが、
@@ -146,7 +146,7 @@ def _simulate_results(bets: list[Bet]) -> list[dict]:
 def calculate_metrics(
     bets: list[Bet],
     initial_bankroll: int,
-    race_results: dict[str, dict] | None = None,
+    race_results: dict[str, dict[str, Any]] | None = None,
 ) -> BacktestMetrics:
     """ベットリストからKPI指標を算出する。
 

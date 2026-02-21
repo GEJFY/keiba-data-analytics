@@ -163,7 +163,7 @@ class Notifier:
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
-                return resp.status == 200
+                return bool(resp.status == 200)
         except (urllib.error.URLError, Exception) as e:
             logger.error(f"Slack通知エラー: {e}")
             return False

@@ -97,7 +97,7 @@ class SearchSpace:
     """探索空間定義 + ランダムサンプリング。"""
 
     def __init__(self) -> None:
-        self._dimensions = {
+        self._dimensions: dict[str, list[Any]] = {
             "train_window_months": TRAIN_WINDOW_MONTHS,
             "ev_threshold": EV_THRESHOLDS,
             "regularization": REGULARIZATIONS,
@@ -117,7 +117,7 @@ class SearchSpace:
             result *= len(values)
         return result
 
-    def get_dimensions(self) -> dict[str, list]:
+    def get_dimensions(self) -> dict[str, list[Any]]:
         """探索空間の各次元を返す。"""
         return dict(self._dimensions)
 
