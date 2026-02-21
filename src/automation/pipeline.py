@@ -374,11 +374,24 @@ class RaceDayPipeline:
     def step_reconcile(self) -> dict[str, Any]:
         """未照合ベットを一括照合する。
 
+        照合後、当日の bankroll_log スナップショットを書き込む。
+
         Returns:
             {"reconciled": int}
         """
         collector = ResultCollector(self._jvlink_db, self._ext_db)
         count = collector.reconcile_all_pending()
+
+        # 当日収支スナップショットを bankroll_log に書き込む
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        initial_bankroll = self._config.get("bankroll", {}).get(
+            "initial_balance", 1_000_000
+        )
+        try:
+            collector.write_daily_snapshot(date_str, initial_bankroll)
+        except Exception as e:
+            logger.error(f"bankroll_logスナップショット書き込みエラー: {e}")
+
         return {"reconciled": count}
 
     def step_notify(self, result: PipelineResult) -> None:

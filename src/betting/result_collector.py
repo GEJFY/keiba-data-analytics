@@ -115,7 +115,8 @@ class ResultCollector:
             try:
                 self._ext_db.execute_write(
                     """UPDATE bets
-                       SET result = ?, payout_yen = ?, settled_at = ?
+                       SET result = ?, payout_yen = ?, settled_at = ?,
+                           status = 'SETTLED'
                        WHERE bet_id = ?""",
                     (result, payout_yen, now, bet["bet_id"]),
                 )
@@ -161,6 +162,85 @@ class ResultCollector:
 
         logger.info(f"一括照合完了: {total_updated}件更新")
         return total_updated
+
+    def write_daily_snapshot(
+        self, date: str, initial_bankroll: int = 1_000_000
+    ) -> bool:
+        """当日の収支スナップショットを bankroll_log に書き込む。
+
+        bets テーブルの settled_at が date に一致する行を集計し、
+        bankroll_log に UPSERT する。
+
+        Args:
+            date: 対象日 YYYY-MM-DD 形式
+            initial_bankroll: 前日残高が存在しない場合の初期残高
+
+        Returns:
+            書き込み成功なら True
+        """
+        if not self._ext_db.table_exists("bets"):
+            logger.warning("betsテーブルが存在しないためスナップショットをスキップ")
+            return False
+        if not self._ext_db.table_exists("bankroll_log"):
+            logger.warning("bankroll_logテーブルが存在しないためスナップショットをスキップ")
+            return False
+
+        # 当日の決済済みベットを集計
+        rows = self._ext_db.execute_query(
+            """SELECT COALESCE(SUM(stake_yen), 0) AS total_stake,
+                      COALESCE(SUM(payout_yen), 0) AS total_payout
+               FROM bets
+               WHERE settled_at LIKE ? AND status = 'SETTLED'""",
+            (f"{date}%",),
+        )
+        if not rows:
+            return False
+
+        total_stake = rows[0]["total_stake"]
+        total_payout = rows[0]["total_payout"]
+
+        if total_stake == 0 and total_payout == 0:
+            logger.info(f"bankroll_log: {date} の決済済みベットなし — スキップ")
+            return False
+
+        pnl = total_payout - total_stake
+
+        # 前日の closing_balance を opening_balance として使用
+        prev = self._ext_db.execute_query(
+            "SELECT closing_balance FROM bankroll_log ORDER BY date DESC LIMIT 1"
+        )
+        opening_balance = prev[0]["closing_balance"] if prev else initial_bankroll
+        closing_balance = opening_balance + pnl
+        roi = pnl / total_stake if total_stake > 0 else 0.0
+
+        # UPSERT: 同一日が既存なら更新、なければ挿入
+        existing = self._ext_db.execute_query(
+            "SELECT log_id FROM bankroll_log WHERE date = ?", (date,)
+        )
+        if existing:
+            self._ext_db.execute_write(
+                """UPDATE bankroll_log
+                   SET opening_balance = ?, total_stake = ?, total_payout = ?,
+                       closing_balance = ?, pnl = ?, roi = ?
+                   WHERE date = ?""",
+                (opening_balance, total_stake, total_payout,
+                 closing_balance, pnl, roi, date),
+            )
+        else:
+            self._ext_db.execute_write(
+                """INSERT INTO bankroll_log
+                   (date, opening_balance, total_stake, total_payout,
+                    closing_balance, pnl, roi)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (date, opening_balance, total_stake, total_payout,
+                 closing_balance, pnl, roi),
+            )
+
+        logger.info(
+            f"bankroll_log: {date} PnL={pnl:+,}円 "
+            f"残高={closing_balance:,}円 ROI={roi:+.1%}"
+        )
+        return True
 
     @staticmethod
     def _calculate_payout(

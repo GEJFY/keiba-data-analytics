@@ -139,6 +139,35 @@ class TestTaxReportGenerator:
         report = gen.generate(2025)
         assert report.n_bets == 0
 
+    def test_monthly_breakdown_has_columns(self, ext_db: DatabaseManager) -> None:
+        """月次内訳が正しいカラムを持つこと。"""
+        import pandas as pd
+
+        gen = TaxReportGenerator(ext_db)
+        report = gen.generate(2025)
+        rows = []
+        for m in report.monthly_breakdown:
+            rows.append({"月": m.month, "投票数": m.n_bets, "的中数": m.n_wins})
+        df = pd.DataFrame(rows)
+        assert not df.empty
+        assert "月" in df.columns
+        assert len(df) == 2
+
+    def test_top_payouts_has_columns(self, ext_db: DatabaseManager) -> None:
+        """高額払戻が正しいカラムを持つこと。"""
+        import pandas as pd
+
+        gen = TaxReportGenerator(ext_db)
+        report = gen.generate(2025)
+        rows = [
+            {"払戻額": f"{p.get('payout', 0):,}", "利益": f"{p.get('profit', 0):+,}"}
+            for p in report.top_payouts
+        ]
+        df = pd.DataFrame(rows)
+        assert not df.empty
+        assert "払戻額" in df.columns
+        assert len(df) == 2
+
     def test_format_summary(self, ext_db: DatabaseManager) -> None:
         """テキストサマリーが生成されること。"""
         gen = TaxReportGenerator(ext_db)
