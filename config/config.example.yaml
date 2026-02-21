@@ -22,9 +22,6 @@ llm_gateway:
     api_version: "2024-12-01-preview"
     # API keyは環境変数 AZURE_OPENAI_API_KEY で設定
     models:
-      gpt51_chat: "gpt-51-chat"
-      gpt5_mini: "gpt-5-mini"
-      gpt5_nano: "gpt-5-nano"
       gpt4o: "gpt-4o"
       gpt4o_mini: "gpt-4o-mini"
 
@@ -34,34 +31,33 @@ llm_gateway:
     location: "us-central1"
     # 認証はサービスアカウントキーまたはADCを使用
     models:
-      gemini_pro: "gemini-3.0-pro-preview"
-      gemini_flash: "gemini-3.0-flash-preview"
-      claude_opus: "claude-opus-4-6"
+      gemini_pro: "gemini-2.0-pro-exp"
+      gemini_flash: "gemini-2.0-flash"
 
   # 用途別モデル割り当て（Azure AI Foundry優先）
-  # GPT-5.1-chat: 最高性能、GPT-5-mini: 推論対応、GPT-5-nano: 低遅延
+  # gpt-4o: 高性能、gpt-4o-mini: 低コスト・低遅延
   model_routing:
     deep_research:
-      primary: "azure/gpt51_chat"
-      fallback: "azure/gpt5_mini"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     factor_generation:
-      primary: "azure/gpt51_chat"
-      fallback: "azure/gpt5_mini"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     weekly_report:
-      primary: "azure/gpt51_chat"
-      fallback: "azure/gpt5_mini"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     nl_query:
-      primary: "azure/gpt5_nano"
+      primary: "azure/gpt4o_mini"
       fallback: "azure/gpt4o_mini"
     alert_interpretation:
-      primary: "azure/gpt5_nano"
+      primary: "azure/gpt4o_mini"
       fallback: "azure/gpt4o_mini"
     race_analysis:
-      primary: "azure/gpt51_chat"
-      fallback: "azure/gpt5_mini"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
     report_generation:
-      primary: "azure/gpt51_chat"
-      fallback: "azure/gpt5_mini"
+      primary: "azure/gpt4o"
+      fallback: "azure/gpt4o_mini"
 
 # スコアリングエンジン
 scoring:
