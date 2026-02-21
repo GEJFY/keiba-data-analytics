@@ -23,7 +23,7 @@ IDM/SpeedIndex は JVLink に存在しないため、DMJyuni（JRA公式マイ�
 # ファクタールール定義
 # 各ルールは factor_rules テーブルに登録され、
 # ScoringEngine が APPROVED & is_active=1 のものを自動取得して評価する。
-GY_INITIAL_FACTORS: list[dict] = [
+GY_INITIAL_FACTORS: list[dict[str, object]] = [
     # ===== カテゴリー 1: 過去レース評価 =====
     {
         "rule_name": "前走上位着順減点",

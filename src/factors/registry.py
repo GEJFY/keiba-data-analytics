@@ -313,7 +313,8 @@ class FactorRegistry:
                  calibrator_method, config_json, now, "user"),
             )
             cursor = conn.execute("SELECT last_insert_rowid() as id")
-            snapshot_id = cursor.fetchone()[0]
+            row = cursor.fetchone()
+            snapshot_id = int(row[0]) if row else 0
 
         all_rules = self._db.execute_query(
             "SELECT rule_id FROM factor_rules ORDER BY rule_id"

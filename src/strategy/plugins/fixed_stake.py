@@ -121,14 +121,14 @@ class FixedStakeStrategy(Strategy):
     @staticmethod
     def _build_race_key(race_data: dict[str, Any]) -> str:
         """race_dataからrace_keyを構築する。"""
-        rk = race_data.get("race_key", "")
+        rk = str(race_data.get("race_key", ""))
         if rk:
             return rk
-        return (
-            race_data.get("Year", "")
-            + race_data.get("MonthDay", "")
-            + race_data.get("JyoCD", "")
-            + race_data.get("Kaiji", "")
-            + race_data.get("Nichiji", "")
-            + race_data.get("RaceNum", "")
+        return str(
+            str(race_data.get("Year", ""))
+            + str(race_data.get("MonthDay", ""))
+            + str(race_data.get("JyoCD", ""))
+            + str(race_data.get("Kaiji", ""))
+            + str(race_data.get("Nichiji", ""))
+            + str(race_data.get("RaceNum", ""))
         )

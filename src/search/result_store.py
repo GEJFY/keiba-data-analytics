@@ -197,4 +197,4 @@ class ResultStore:
             return 0.0
         scores = [r["composite_score"] for r in rows]
         mid = len(scores) // 2
-        return scores[mid] if len(scores) % 2 == 1 else (scores[mid - 1] + scores[mid]) / 2
+        return float(scores[mid]) if len(scores) % 2 == 1 else float(scores[mid - 1] + scores[mid]) / 2

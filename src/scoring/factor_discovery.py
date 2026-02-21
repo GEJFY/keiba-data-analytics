@@ -186,7 +186,7 @@ class FactorDiscovery:
         valid_keys: set[tuple[str, ...]] = set()
         race_info_map: dict[tuple[str, ...], dict[str, Any]] = {}
         for rk in race_keys:
-            key = (rk["idYear"], rk["idMonthDay"], rk["idJyoCD"],
+            key: tuple[str, ...] = (rk["idYear"], rk["idMonthDay"], rk["idJyoCD"],
                    rk["idKaiji"], rk["idNichiji"], rk["idRaceNum"])
             valid_keys.add(key)
             race_info_map[key] = rk
@@ -406,7 +406,7 @@ class FactorDiscovery:
         if progress_callback:
             progress_callback(1, 3, "単変量分析中...")
 
-        candidates = []
+        candidates: list[dict[str, Any]] = []
         for _feat_idx, feat_name in enumerate(numeric_features):
             scores = [_safe_float(f.get(feat_name, 0)) for f in features_list]
             unique_vals = set(scores)
@@ -453,7 +453,7 @@ class FactorDiscovery:
             })
 
         # AUC降順でソート
-        candidates.sort(key=lambda x: x["auc"], reverse=True)
+        candidates.sort(key=lambda x: float(x["auc"]), reverse=True)
 
         if progress_callback:
             progress_callback(2, 3, "交互作用分析中...")
@@ -545,7 +545,7 @@ class FactorDiscovery:
         direction: str,
         scores: list[float],
         labels: list[int],
-        quintiles: list[dict],
+        quintiles: list[dict[str, Any]],
     ) -> str:
         """ファクター式の候補を自動生成する。
 
@@ -641,7 +641,7 @@ class FactorDiscovery:
 
     def _analyze_interactions(
         self,
-        features_list: list[dict],
+        features_list: list[dict[str, Any]],
         labels: list[int],
         base_rate: float,
     ) -> list[dict[str, Any]]:
@@ -665,7 +665,7 @@ class FactorDiscovery:
             if any(feat.get(f, 0) != 0 for feat in features_list[:100])
         ]
 
-        interactions = []
+        interactions: list[dict[str, Any]] = []
         for i, f1 in enumerate(available):
             for f2 in available[i + 1:]:
                 # 両方1のサンプルを抽出
@@ -701,5 +701,5 @@ class FactorDiscovery:
                     ),
                 })
 
-        interactions.sort(key=lambda x: x["lift"], reverse=True)
+        interactions.sort(key=lambda x: float(x["lift"]), reverse=True)
         return interactions[:20]  # 上位20件

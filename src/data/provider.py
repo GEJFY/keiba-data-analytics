@@ -292,7 +292,7 @@ class JVLinkDataProvider:
     @staticmethod
     def _parse_payouts_row(row: dict[str, Any]) -> dict[str, Any]:
         """払戻行(横持ち)を構造化dictに変換する。"""
-        payouts: dict[str, list[dict]] = {}
+        payouts: dict[str, list[dict[str, Any]]] = {}
         payouts["tansyo"] = JVLinkDataProvider._extract_pay_entries(row, "PayTansyo", 3, "Umaban")
         payouts["fukusyo"] = JVLinkDataProvider._extract_pay_entries(row, "PayFukusyo", 5, "Umaban")
         payouts["umaren"] = JVLinkDataProvider._extract_pay_entries(row, "PayUmaren", 3, "Kumi")

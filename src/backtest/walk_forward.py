@@ -8,6 +8,7 @@
 """
 
 from dataclasses import dataclass
+from datetime import date as _date
 from typing import Any
 
 from loguru import logger
@@ -409,11 +410,10 @@ class WalkForwardEngine:
         return result
 
 
-def _parse_date(date_str: str):
+def _parse_date(date_str: str) -> _date:
     """YYYYMMDD or YYYY-MM-DD → date"""
-    from datetime import date
     s = date_str.replace("-", "")
-    return date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+    return _date(int(s[:4]), int(s[4:6]), int(s[6:8]))
 
 
 def _filter_races(
