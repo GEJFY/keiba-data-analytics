@@ -19,22 +19,24 @@ from src.dashboard.components.workflow_bar import render_workflow_bar
 from src.data.db import DatabaseManager
 
 
-def _load_bankroll_log(ext_db: DatabaseManager) -> pd.DataFrame:
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_bankroll_log(_ext_db: DatabaseManager) -> pd.DataFrame:
     """bankroll_logテーブルを読み込む。"""
-    if not ext_db.table_exists("bankroll_log"):
+    if not _ext_db.table_exists("bankroll_log"):
         return pd.DataFrame()
-    rows = ext_db.execute_query(
+    rows = _ext_db.execute_query(
         "SELECT date, opening_balance, total_stake, total_payout, "
         "closing_balance, pnl, roi FROM bankroll_log ORDER BY date"
     )
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
-def _load_bets(ext_db: DatabaseManager) -> pd.DataFrame:
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_bets(_ext_db: DatabaseManager) -> pd.DataFrame:
     """betsテーブルを読み込む。"""
-    if not ext_db.table_exists("bets"):
+    if not _ext_db.table_exists("bets"):
         return pd.DataFrame()
-    rows = ext_db.execute_query(
+    rows = _ext_db.execute_query(
         "SELECT bet_id, race_key, bet_type, selection, stake_yen, "
         "est_prob, odds_at_bet, est_ev, status, result, payout_yen, created_at "
         "FROM bets ORDER BY created_at DESC LIMIT 500"

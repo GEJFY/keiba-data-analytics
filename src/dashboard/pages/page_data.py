@@ -36,15 +36,16 @@ DELETABLE_TABLES = {
 }
 
 
-def _detect_data_source(db: DatabaseManager) -> dict:
+@st.cache_data(ttl=300, show_spinner=False)
+def _detect_data_source(_db: DatabaseManager) -> dict:
     """ダミーデータか本番データかを判定する。"""
-    if not db.table_exists("NL_RA_RACE"):
+    if not _db.table_exists("NL_RA_RACE"):
         return {"source": "empty"}
 
-    rows = db.execute_query("SELECT DISTINCT idJyoCD FROM NL_RA_RACE")
+    rows = _db.execute_query("SELECT DISTINCT idJyoCD FROM NL_RA_RACE")
     jyo_codes = {r["idJyoCD"] for r in rows}
 
-    date_info = db.execute_query(
+    date_info = _db.execute_query(
         "SELECT MIN(idYear || idMonthDay) AS min_d, "
         "MAX(idYear || idMonthDay) AS max_d, "
         "COUNT(DISTINCT idYear || idMonthDay) AS days "
@@ -66,7 +67,8 @@ def _detect_data_source(db: DatabaseManager) -> dict:
     }
 
 
-def _get_table_counts(db: DatabaseManager) -> list[dict]:
+@st.cache_data(ttl=300, show_spinner=False)
+def _get_table_counts(_db: DatabaseManager) -> list[dict]:
     """主要テーブルのレコード数を取得する。"""
     tables = [
         "NL_RA_RACE", "NL_SE_RACE_UMA",
@@ -77,7 +79,7 @@ def _get_table_counts(db: DatabaseManager) -> list[dict]:
     ]
     # 存在テーブルを1クエリで確認
     placeholders = ",".join("?" * len(tables))
-    existing = db.execute_query(
+    existing = _db.execute_query(
         f"SELECT name FROM sqlite_master WHERE type='table' AND name IN ({placeholders})",
         tuple(tables),
     )
@@ -90,7 +92,7 @@ def _get_table_counts(db: DatabaseManager) -> list[dict]:
         union_sql = " UNION ALL ".join(
             f"SELECT '{t}' AS tbl, COUNT(*) AS cnt FROM [{t}]" for t in present
         )
-        for r in db.execute_query(union_sql):
+        for r in _db.execute_query(union_sql):
             count_map[r["tbl"]] = r["cnt"]
 
     rows = []

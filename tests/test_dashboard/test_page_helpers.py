@@ -93,6 +93,7 @@ class TestPageDataHelpers:
         """テーブルレコード数の取得。"""
         from src.dashboard.pages.page_data import _get_table_counts
 
+        _get_table_counts.clear()
         counts = _get_table_counts(jvlink_db)
         assert isinstance(counts, list)
         # NL_RA_RACEが存在し1件
@@ -176,6 +177,7 @@ class TestPagePnlHelpers:
         """bankroll_logの読み込み。"""
         from src.dashboard.pages.page_pnl import _load_bankroll_log
 
+        _load_bankroll_log.clear()
         df = _load_bankroll_log(ext_db)
         assert not df.empty
         assert len(df) == 3
@@ -184,6 +186,7 @@ class TestPagePnlHelpers:
     def test_load_bankroll_log_empty(self, tmp_path) -> None:
         from src.dashboard.pages.page_pnl import _load_bankroll_log
 
+        _load_bankroll_log.clear()
         db = DatabaseManager(str(tmp_path / "empty.db"), wal_mode=False)
         df = _load_bankroll_log(db)
         assert df.empty
@@ -195,6 +198,7 @@ class TestPagePnlHelpers:
             _load_bankroll_log,
         )
 
+        _load_bankroll_log.clear()
         df = _load_bankroll_log(ext_db)
         dates, cum_pnl, drawdowns = _compute_cumulative(df)
 
@@ -223,6 +227,7 @@ class TestPagePnlMonthlyHelpers:
             _load_bankroll_log,
         )
 
+        _load_bankroll_log.clear()
         df = _load_bankroll_log(ext_db)
         monthly = _build_monthly_table(df)
         assert not monthly.empty
@@ -238,6 +243,7 @@ class TestPagePnlMonthlyHelpers:
             _load_bankroll_log,
         )
 
+        _load_bankroll_log.clear()
         df = _load_bankroll_log(ext_db)
         monthly = _build_monthly_table(df)
         years, months, values = _build_heatmap_data(monthly)
