@@ -189,15 +189,56 @@ class BetExecutor:
         return results
 
     def _execute_selenium(self, bets: list[Bet]) -> list[BetExecutionResult]:
-        """Selenium方式: 未実装（将来拡張）。
+        """Selenium方式: SeleniumIPATExecutorへ委譲する。
 
-        現時点ではFAILED結果を返す。
-        Selenium WebDriverによるIPAT自動操作は
-        セキュリティ上の理由から手動拡張を前提とする。
+        SeleniumIPATExecutorが利用可能でない場合（seleniumパッケージ未インストール、
+        またはログイン失敗）はFAILEDを返す。
         """
+        import os
+
+        from src.betting.selenium_executor import SeleniumConfig, SeleniumIPATExecutor
+
         now = datetime.now(UTC).isoformat()
+
+        # Selenium環境の可用性チェック
+        probe = SeleniumIPATExecutor(SeleniumConfig())
+        if not probe.is_available():
+            logger.warning("Selenium未インストール: pip install selenium")
+            return [
+                BetExecutionResult(
+                    race_key=bet.race_key,
+                    selection=bet.selection,
+                    bet_type=bet.bet_type,
+                    stake_yen=bet.stake_yen,
+                    odds_at_bet=bet.odds_at_bet,
+                    est_ev=bet.est_ev,
+                    status="FAILED",
+                    executed_at=now,
+                    error_message="Seleniumがインストールされていません",
+                )
+                for bet in bets
+            ]
+
+        # 環境変数からIPAT認証情報を取得
+        sel_config = SeleniumConfig(
+            inet_id=os.environ.get("IPAT_INET_ID", ""),
+            kanyusya_no=os.environ.get("IPAT_KANYUSYA_NO", ""),
+            password=os.environ.get("IPAT_PASSWORD", ""),
+            pars=os.environ.get("IPAT_PARS", ""),
+            headless=True,
+        )
+
+        executor = SeleniumIPATExecutor(sel_config)
+        raw_results = executor.execute_bets(bets)
+
         results = []
-        for bet in bets:
+        for bet, raw in zip(bets, raw_results, strict=False):
+            if raw.get("success", False):
+                status = "EXECUTED"
+                error = ""
+            else:
+                status = "FAILED"
+                error = raw.get("message", "Selenium投票失敗")
             results.append(BetExecutionResult(
                 race_key=bet.race_key,
                 selection=bet.selection,
@@ -205,11 +246,10 @@ class BetExecutor:
                 stake_yen=bet.stake_yen,
                 odds_at_bet=bet.odds_at_bet,
                 est_ev=bet.est_ev,
-                status="FAILED",
+                status=status,
                 executed_at=now,
-                error_message="Selenium方式は未実装です。dryrunまたはipatgoを使用してください。",
+                error_message=error,
             ))
-        logger.warning("Selenium方式は未実装です")
         return results
 
     def _record_to_db(
